@@ -1,0 +1,86 @@
+name: dnr_pest_control
+description: DNR Pest Control mobile app (Customer · Technician · limited Admin).
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- State management ---
+  flutter_riverpod: ^2.5.1        # app-wide state, DI, async providers
+  riverpod_annotation: ^2.3.5     # codegen for typed providers
+
+  # --- Routing ---
+  go_router: ^14.2.0              # declarative, deep-link + role-aware redirects
+
+  # --- Networking ---
+  dio: ^5.5.0                     # HTTP client with interceptors (auth, retry, logging)
+  pretty_dio_logger: ^1.4.0       # readable request/response logs (debug only)
+
+  # --- Auth / Firebase ---
+  firebase_core: ^3.3.0           # Firebase init
+  firebase_auth: ^5.1.4           # Google/Apple/email sign-in (IdP) → backend exchanges for app JWTs
+  firebase_messaging: ^15.0.4     # FCM push notifications
+  firebase_crashlytics: ^4.0.4    # crash + non-fatal error reporting
+  flutter_local_notifications: ^17.2.2  # foreground notification display
+  google_sign_in: ^6.2.1          # Google IdP
+  sign_in_with_apple: ^6.1.1      # Apple IdP (iOS requirement)
+
+  # --- Storage ---
+  flutter_secure_storage: ^9.2.2  # tokens at rest (Keychain / EncryptedSharedPrefs)
+  shared_preferences: ^2.3.2      # non-sensitive prefs (theme, onboarding, flags)
+
+  # --- Realtime ---
+  socket_io_client: ^2.0.3+1      # Socket.IO client (chat + live location namespaces)
+
+  # --- Maps / Location ---
+  google_maps_flutter: ^2.7.0     # map rendering (tracking, service address)
+  geolocator: ^12.0.0             # device GPS (technician live location)
+  geocoding: ^3.0.0               # forward/reverse geocoding (address lookup)
+  url_launcher: ^6.3.0            # open-in-maps / external links
+
+  # --- Payments ---
+  flutter_stripe: ^11.1.0         # PaymentSheet, Apple/Google Pay
+
+  # --- Models / serialization ---
+  freezed_annotation: ^2.4.4      # immutable models + unions (Result/state)
+  json_annotation: ^4.9.0         # JSON (de)serialization
+
+  # --- Utilities ---
+  intl: ^0.19.0                   # dates, currency, i18n
+  collection: ^1.18.0             # list/map helpers
+  logger: ^2.4.0                  # structured logging
+  connectivity_plus: ^6.0.5       # online/offline awareness
+  cached_network_image: ^3.4.0    # image cache (avatars, photos)
+  image_picker: ^1.1.2            # pest/before/after photos + signature export
+  package_info_plus: ^8.0.2       # app version (sent in headers / support)
+  device_info_plus: ^10.1.2       # device metadata (device registration)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0           # lint rules
+  build_runner: ^2.4.11           # codegen runner
+  riverpod_generator: ^2.4.3      # @riverpod codegen
+  freezed: ^2.5.7                 # freezed codegen
+  json_serializable: ^6.8.0       # json codegen
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.13          # Riverpod best-practice lints
+  # --- Testing ---
+  mocktail: ^1.0.4                # mock repositories/datasources/Dio/Firebase (no codegen)
+  integration_test:               # on-device end-to-end flows
+    sdk: flutter
+  network_image_mock: ^2.1.1      # stub NetworkImage in widget tests
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+  # Flavors (dev/staging/prod) are configured natively (Android productFlavors,
+  # iOS schemes/configs) + selected at runtime via --dart-define=FLAVOR=.

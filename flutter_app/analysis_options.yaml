@@ -1,0 +1,23 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    invalid_annotation_target: ignore # freezed/json codegen
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_final_locals
+    - require_trailing_commas
+    - avoid_print
+    - unawaited_futures
+    - prefer_single_quotes
+    - directives_ordering
+
+# Riverpod best-practice lints (via custom_lint).
+custom_lint:
+  rules:
+    - avoid_manual_providers_as_generated_provider_dependency

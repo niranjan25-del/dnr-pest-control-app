@@ -1,0 +1,76 @@
+# .github/workflows/flutter-ci.yml
+# Flutter CI: format check → static analysis → tests (coverage) → Android + iOS build
+# validation. Path-filtered to flutter_app/. Codegen runs before analyze/test because the
+# project uses freezed/riverpod/json_serializable generators. iOS build is no-codesign (CI
+# validation only; signed builds happen in the mobile release pipeline).
+
+name: Flutter CI
+
+on:
+  push:
+    branches: [develop, main]
+    paths: ['flutter_app/**', '.github/workflows/flutter-ci.yml']
+  pull_request:
+    paths: ['flutter_app/**', '.github/workflows/flutter-ci.yml']
+
+defaults:
+  run:
+    working-directory: flutter_app
+
+concurrency:
+  group: flutter-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-test:
+    name: Analyze & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.24.x'
+          cache: true
+      - run: flutter pub get
+      - name: Code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Format check
+        run: dart format --set-exit-if-changed lib test
+      - name: Static analysis
+        run: flutter analyze
+      - name: Unit & widget tests (coverage)
+        run: flutter test --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flutter-coverage
+          path: flutter_app/coverage/lcov.info
+
+  android-build:
+    name: Android build validation
+    needs: analyze-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, flutter-version: '3.24.x', cache: true }
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Build APK (dev flavor, debug-signed)
+        run: flutter build apk --debug --dart-define=FLAVOR=dev
+
+  ios-build:
+    name: iOS build validation
+    needs: analyze-test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, flutter-version: '3.24.x', cache: true }
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - name: Build iOS (no codesign — validation only)
+        run: flutter build ios --debug --no-codesign --dart-define=FLAVOR=dev

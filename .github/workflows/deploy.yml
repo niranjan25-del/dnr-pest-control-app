@@ -1,0 +1,113 @@
+# .github/workflows/deploy.yml
+# Continuous deployment. Staging deploys automatically on push to develop; production deploys
+# on a published GitHub Release (tag vX.Y.Z) or manual dispatch, and requires the protected
+# `production` environment approval. Backend → ECS rolling update (image already in ECR from
+# backend-ci); Admin → S3 sync + CloudFront invalidation. Rollback is a manual dispatch that
+# redeploys a previous image tag / restores the previous admin bundle.
+
+name: Deploy
+
+on:
+  push:
+    branches: [develop]            # → staging
+  release:
+    types: [published]             # tag vX.Y.Z → production
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [staging, production]
+        required: true
+      rollback_tag:
+        description: 'Image tag to roll back to (backend). Leave blank for a normal deploy.'
+        required: false
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || (github.event_name == 'release' && 'production' || 'staging') }}
+  cancel-in-progress: false        # never cancel an in-flight deploy
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.pick.outputs.env }}
+      tag: ${{ steps.pick.outputs.tag }}
+    steps:
+      - id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then ENV=production
+          elif [ "${{ github.event_name }}" = "push" ]; then ENV=staging
+          else ENV="${{ github.event.inputs.environment }}"; fi
+          TAG="${{ github.event.inputs.rollback_tag }}"
+          [ -z "$TAG" ] && TAG="${GITHUB_SHA::8}"
+          echo "env=$ENV"  >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"  >> "$GITHUB_OUTPUT"
+
+  deploy-backend:
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.env }}   # `production` requires approval (branch/env protection)
+    permissions: { id-token: write, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      # Fetch the current task definition, then render it with the target image + roll the service.
+      - name: Fetch current task definition
+        run: |
+          aws ecs describe-task-definition --task-definition "dnr-backend-${{ needs.resolve.outputs.env }}" \
+            --query taskDefinition > taskdef.json
+      - uses: aws-actions/amazon-ecs-render-task-definition@v1
+        id: render
+        with:
+          task-definition: taskdef.json
+          container-name: dnr-backend
+          image: ${{ steps.ecr.outputs.registry }}/dnr-backend:${{ needs.resolve.outputs.tag }}
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: dnr-backend-${{ needs.resolve.outputs.env }}
+          cluster: dnr-${{ needs.resolve.outputs.env }}
+          wait-for-service-stability: true   # ECS deployment circuit breaker rolls back on failure
+
+  deploy-admin:
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.env }}
+    permissions: { id-token: write, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: admin_dashboard/package-lock.json }
+      - run: npm ci
+        working-directory: admin_dashboard
+      - run: npm run build
+        working-directory: admin_dashboard
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - name: Sync to S3 + invalidate CloudFront
+        run: |
+          aws s3 sync admin_dashboard/dist "s3://${{ vars.ADMIN_BUCKET }}" --delete --cache-control "max-age=300"
+          aws cloudfront create-invalidation --distribution-id "${{ vars.ADMIN_CF_DISTRIBUTION }}" --paths "/*"
+
+  smoke-test:
+    needs: [resolve, deploy-backend, deploy-admin]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS "${{ vars.API_HEALTH_URL }}"; then echo "healthy"; exit 0; fi
+            sleep 10
+          done
+          echo "health check failed"; exit 1

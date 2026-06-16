@@ -1,0 +1,27 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Generated
+*.g.dart
+*.freezed.dart
+
+# Secrets / Firebase (do NOT commit)
+**/google-services.json
+**/GoogleService-Info.plist
+lib/firebase_options.dart
+.env
+*.keystore
+*.jks
+
+# OS
+.DS_Store
