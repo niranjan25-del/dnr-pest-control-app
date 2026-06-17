@@ -36,5 +36,5 @@ COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 USER nestjs
 EXPOSE 3000
 
-# Run pending migrations, then start. (migrate deploy is idempotent + safe to re-run.)
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# Sync schema (db push is idempotent — no-op when schema is already in sync), then start.
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main.js"]

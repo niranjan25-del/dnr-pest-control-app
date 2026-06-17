@@ -68,6 +68,5 @@ flutter_app/pubspec.lock
 # Uploads / generated
 uploads/
 
-# Railway / Docker
+# Docker
 .dockerignore
-railway.toml
