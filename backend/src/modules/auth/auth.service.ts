@@ -39,9 +39,20 @@ export class AuthService {
 
   // ---------- Registration ----------
   async register(dto: RegisterDto): Promise<AuthResponse> {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: dto.email },
+          ...(dto.phone ? [{ phone: dto.phone }] : []),
+        ],
+      },
+      select: { email: true, phone: true },
+    });
     if (existing) {
-      throw new ConflictException({ code: AUTH_ERRORS.EMAIL_IN_USE, message: 'Email is already registered' });
+      if (existing.email === dto.email) {
+        throw new ConflictException({ code: AUTH_ERRORS.EMAIL_IN_USE, message: 'This email is already registered. Please sign in instead.' });
+      }
+      throw new ConflictException({ code: 'PHONE_IN_USE', message: 'This phone number is already linked to an account. Try a different number or leave it blank.' });
     }
     const role = (dto.role ?? SelfRegisterRole.CUSTOMER) as unknown as UserRole;
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);

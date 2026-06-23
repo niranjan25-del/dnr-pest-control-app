@@ -126,6 +126,12 @@ enum ReviewStatus {
   FLAGGED
 }
 
+enum BookingPriority {
+  NORMAL
+  HIGH
+  EMERGENCY
+}
+
 enum ReportStatus {
   DRAFT
   SUBMITTED
@@ -298,11 +304,29 @@ model TechnicianProfile {
   serviceAreas ServiceArea[]
   serviceReports ServiceReport[]
   reviews      Review[]
+  dutyLogs     TechnicianDutyLog[]
 
   @@index([isAvailable])
   @@index([licenseExpiry])
   @@index([deletedAt])
   @@map("technician_profiles")
+}
+
+model TechnicianDutyLog {
+  id           String            @id @default(uuid()) @db.Uuid
+  technicianId String            @db.Uuid @map("technician_id")
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  date         DateTime          @db.Date @map("date")
+  punchedInAt  DateTime          @map("punched_in_at")
+  punchedOutAt DateTime?         @map("punched_out_at")
+  note         String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([technicianId, date])
+  @@index([date])
+  @@map("technician_duty_logs")
 }
 
 model ServiceArea {
@@ -402,6 +426,7 @@ model Service {
   basePrice           Decimal         @db.Decimal(10, 2) @map("base_price")
   currency            String          @default("INR")
   estimatedDurationMin Int            @map("estimated_duration_min")
+  warrantyDays        Int             @default(30) @map("warranty_days")
   isActive            Boolean         @default(true) @map("is_active")
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -478,6 +503,7 @@ model Booking {
   notes                String?
   cancellationReason   String?       @map("cancellation_reason")
   cancellationFeeApplied Boolean     @default(false) @map("cancellation_fee_applied")
+  priority             BookingPriority @default(NORMAL)
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -488,6 +514,7 @@ model Booking {
   invoice       Invoice?
   serviceReport ServiceReport?
   review        Review?
+  warranty      ServiceWarranty?
   couponUsages  CouponUsage[]
 
   @@index([customerId])
@@ -872,4 +899,22 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+model ServiceWarranty {
+  id           String   @id @default(uuid()) @db.Uuid
+  bookingId    String   @unique @db.Uuid @map("booking_id")
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  serviceName  String   @map("service_name")
+  warrantyDays Int      @map("warranty_days")
+  expiresAt    DateTime @map("expires_at")
+  isActive     Boolean  @default(true) @map("is_active")
+  claimedAt    DateTime? @map("claimed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([bookingId])
+  @@index([expiresAt, isActive])
+  @@map("service_warranties")
 }

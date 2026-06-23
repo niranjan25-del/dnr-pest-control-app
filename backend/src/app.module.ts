@@ -48,6 +48,7 @@ import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { MobileModule } from './modules/mobile/mobile.module';
+import { WarrantiesModule } from './modules/warranties/warranties.module';
 
 @Module({
   imports: [
@@ -120,6 +121,7 @@ import { MobileModule } from './modules/mobile/mobile.module';
     ReviewsModule,
     AuditModule,
     MobileModule,
+    WarrantiesModule,
   ],
   providers: [
     // Global rate limiting.

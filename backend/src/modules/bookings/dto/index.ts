@@ -9,7 +9,7 @@ import {
   ArrayUnique, IsArray, IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID,
   MaxLength,
 } from 'class-validator';
-import { BookingStatus } from '@prisma/client';
+import { BookingPriority, BookingStatus } from '@prisma/client';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 
 export class CreateBookingDto {
@@ -33,6 +33,9 @@ export class CreateBookingDto {
 
   @IsOptional() @IsString() @MaxLength(1000)
   notes?: string;
+
+  @IsOptional() @IsEnum(BookingPriority)
+  priority?: BookingPriority;
 
   // References to already-uploaded MediaFile rows to attach to this booking.
   @IsOptional() @IsArray() @ArrayUnique() @IsUUID('4', { each: true })
@@ -87,4 +90,8 @@ export class BookingFilterDto extends PaginationQueryDto {
 
   @IsOptional() @IsDateString()
   dateTo?: string;
+
+  // Admin-only: filter by customer User.id
+  @IsOptional() @IsString()
+  customer_id?: string;
 }

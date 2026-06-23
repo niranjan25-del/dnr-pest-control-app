@@ -3,6 +3,7 @@
 // Mobile booking-action routes. Technician actions (POST) and customer read (GET):
 //   POST /bookings/:id/accept              — accept the active assignment
 //   POST /bookings/:id/decline             — decline the active assignment
+//   POST /bookings/:id/complete            — upload completion photo + mark COMPLETED
 //   POST /bookings/:id/report              — consolidated create+fill+submit service report
 //   GET  /bookings/:id/technician-location — current technician position for a booking (customer/admin)
 //
@@ -10,9 +11,11 @@
 // TechnicianAssignmentService which enforces the state machine.
 
 import {
-  BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseUUIDPipe, Post, UseGuards,
+  BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseUUIDPipe,
+  Post, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
-import { AssignmentStatus, UserRole } from '@prisma/client';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { AssignmentStatus, BookingStatus, UserRole } from '@prisma/client';
 import {
   IsArray, IsBoolean, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
@@ -25,6 +28,9 @@ import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
 import { TechnicianAssignmentService } from '../technician-assignment/technician-assignment.service';
 import { ServiceReportsService } from '../service-reports/service-reports.service';
 import { LocationService } from '../location/location.service';
+import { MediaService } from '../media/media.service';
+import { BookingsService } from '../bookings/bookings.service';
+import { MediaCategory } from '../media/enums';
 
 const ACTIVE_STATUSES: AssignmentStatus[] = [AssignmentStatus.ASSIGNED, AssignmentStatus.ACCEPTED];
 
@@ -63,6 +69,8 @@ export class BookingActionsController {
     private readonly assignments: TechnicianAssignmentService,
     private readonly reports: ServiceReportsService,
     private readonly location: LocationService,
+    private readonly media: MediaService,
+    private readonly bookings: BookingsService,
   ) {}
 
   // Customer: get the current position of the technician assigned to this booking.
@@ -113,6 +121,51 @@ export class BookingActionsController {
       throw new NotFoundException({ code: 'ASSIGNMENT_NOT_FOUND', message: 'No active assignment found for this booking' });
     }
     return this.assignments.reject(assignment.id, actor, dto.reason);
+  }
+
+  // Upload a completion photo + advance booking to COMPLETED in one atomic call.
+  @Post(':id/complete')
+  @Roles(UserRole.TECHNICIAN)
+  @UseInterceptors(FileInterceptor('photo'))
+  async completeJob(
+    @Param('id', ParseUUIDPipe) bookingId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @UploadedFile() photo: Express.Multer.File,
+    @Body('notes') notes?: string,
+  ) {
+    if (!photo) {
+      throw new BadRequestException({ code: 'PHOTO_REQUIRED', message: 'A completion photo is required' });
+    }
+
+    // Verify technician is assigned to this booking.
+    const techProfile = await this.prisma.technicianProfile.findUnique({
+      where: { userId: actor.id }, select: { id: true },
+    });
+    if (!techProfile) {
+      throw new BadRequestException({ code: 'PROFILE_NOT_FOUND', message: 'Technician profile not found' });
+    }
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, deletedAt: null },
+      select: { id: true, status: true, assignments: { where: { technicianId: techProfile.id, status: { in: [AssignmentStatus.ASSIGNED, AssignmentStatus.ACCEPTED] } }, select: { id: true } } },
+    });
+    if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
+    if (booking.status !== BookingStatus.IN_PROGRESS) {
+      throw new BadRequestException({ code: 'INVALID_STATUS', message: 'Booking must be IN_PROGRESS to complete' });
+    }
+
+    // Upload the completion photo linked to this booking.
+    const uploaded = await this.media.upload(actor, {
+      category: MediaCategory.AFTER_SERVICE_IMAGE,
+      ownerId: bookingId,
+    }, photo);
+
+    // Advance booking status to COMPLETED.
+    await this.bookings.changeStatus(bookingId, actor, {
+      status: BookingStatus.COMPLETED,
+      note: notes ?? 'Job completed by technician',
+    });
+
+    return { success: true, photo_id: uploaded.id, booking_id: bookingId };
   }
 
   @Post(':id/report')

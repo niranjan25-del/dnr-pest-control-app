@@ -1,4 +1,4 @@
-import { PrismaClient, BillingCycle, DiscountType, UserRole, AdminRole } from '@prisma/client';
+import { PrismaClient, BillingCycle, DiscountType, UserRole, AdminRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -258,6 +258,23 @@ async function main() {
     },
   });
   console.log('  ✓ 2 coupons');
+
+  // ── Admin user ───────────────────────────────────────────────────────────────
+  const adminHash = await bcrypt.hash('Nira@2000', BCRYPT_ROUNDS);
+  await prisma.user.upsert({
+    where: { email: 'contact@dnrpestcontrol.in' },
+    update: { status: UserStatus.ACTIVE },
+    create: {
+      email: 'contact@dnrpestcontrol.in',
+      fullName: 'DNR Admin',
+      phone: '+919000000001',
+      role: UserRole.ADMIN,
+      adminRole: AdminRole.SUPER_ADMIN,
+      passwordHash: adminHash,
+      emailVerified: true,
+    },
+  });
+  console.log('  ✓ 1 admin (contact@dnrpestcontrol.in / Nira@2000)');
 
   // ── Test technician ──────────────────────────────────────────────────────────
   const techHash = await bcrypt.hash('Tech@1234', BCRYPT_ROUNDS);

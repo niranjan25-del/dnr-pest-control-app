@@ -18,7 +18,7 @@ import { PdfGeneratorService } from './pdf-generator.service';
 import { StorageService } from './storage.service';
 import { TaxService } from './tax.service';
 import { CreateInvoiceDto, InvoiceFilterDto, RegenerateInvoiceDto } from './dto';
-import { DownloadLink, InvoiceLineItem, InvoicePdfData } from './interfaces';
+import { InvoiceLineItem, InvoicePdfData } from './interfaces';
 import { VOIDABLE_STATUSES } from './enums';
 
 const INVOICE_INCLUDE = {
@@ -135,19 +135,16 @@ export class InvoicesService {
     return this.list(actor, filter); // scope already limits to the customer's own invoices
   }
 
-  // ---------------- Download (lazy-generate PDF) ----------------
-  async download(id: string, actor: AuthenticatedUser): Promise<DownloadLink> {
-    const invoice = await this.prisma.invoice.findFirst({ where: { id, deletedAt: null, ...(await this.scope(actor)) } });
-    if (!invoice) throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
+  // ---------------- Download (stream PDF directly) ----------------
+  async download(id: string, actor: AuthenticatedUser): Promise<{ buffer: Buffer; filename: string }> {
+    const invoice = await this.requireInvoice(id);
+    const isOwner = await this.scope(actor);
+    const accessible = await this.prisma.invoice.findFirst({ where: { id, deletedAt: null, ...isOwner } });
+    if (!accessible) throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
 
-    let key = invoice.pdfUrl;
-    if (!key) {
-      const full = await this.requireInvoice(id);
-      key = await this.buildAndStorePdf(full); // generate on first download
-    }
-    const url = await this.storage.getSignedDownloadUrl(key, 300);
+    const buffer = await this.pdf.generate(this.toPdfData(invoice));
     await this.audit(actor.id, 'invoice.downloaded', id, undefined);
-    return { url, expires_in: 300 };
+    return { buffer, filename: `invoice-${invoice.invoiceNumber}.pdf` };
   }
 
   // ---------------- Export (admin, CSV) — additive ----------------
@@ -236,6 +233,7 @@ export class InvoicesService {
     return {
       deletedAt: null, ...scope,
       ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.customer_id ? { customer: { userId: filter.customer_id } } : {}),
       ...(filter.search
         ? { OR: [
             { invoiceNumber: { contains: filter.search, mode: 'insensitive' } },

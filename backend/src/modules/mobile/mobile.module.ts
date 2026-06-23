@@ -18,6 +18,7 @@ import { TechnicianAssignmentModule } from '../technician-assignment/technician-
 import { LocationModule } from '../location/location.module';
 import { ServiceReportsModule } from '../service-reports/service-reports.module';
 import { MediaModule } from '../media/media.module';
+import { AttendanceModule } from '../attendance/attendance.module';
 import { CustomersController } from './customers.controller';
 import { TechniciansController } from './technicians.controller';
 import { BookingActionsController } from './booking-actions.controller';
@@ -33,6 +34,7 @@ import { FilesController } from './files.controller';
     LocationModule,
     ServiceReportsModule,
     MediaModule,
+    AttendanceModule,
   ],
   controllers: [CustomersController, TechniciansController, BookingActionsController, FilesController],
 })

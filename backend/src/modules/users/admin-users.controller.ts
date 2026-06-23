@@ -2,16 +2,16 @@
 //
 // /admin/users — admin-only directory + status/role management. Class-level @Roles(ADMIN)
 // + RolesGuard gate the whole controller; the service additionally requires SUPER_ADMIN for
-// role changes (privilege-escalation control).
+// role changes and account creation (privilege-escalation control).
 
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, CurrentUser } from '../auth/decorators';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
 import { UsersService } from './users.service';
-import { UpdateUserRoleDto, UpdateUserStatusDto, UserFilterDto } from './dto';
+import { CreateAdminDto, UpdateUserRoleDto, UpdateUserStatusDto, UserFilterDto } from './dto';
 
 @Controller({ path: 'admin/users', version: '1' })
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -22,6 +22,14 @@ export class AdminUsersController {
   @Get()
   list(@Query() filter: UserFilterDto) {
     return this.users.list(filter);
+  }
+
+  @Post()
+  createAdmin(
+    @Body() dto: CreateAdminDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.users.createAdmin(dto, actor);
   }
 
   @Patch(':id/status')

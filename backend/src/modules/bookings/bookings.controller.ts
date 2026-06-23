@@ -7,7 +7,7 @@
 import {
   Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { BookingStatus, UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, CurrentUser } from '../auth/decorators';
@@ -87,6 +87,26 @@ export class BookingsController {
     @Body() dto: CancelBookingDto,
   ) {
     return this.bookings.cancel(id, actor, dto);
+  }
+
+  // Technician accepts an assigned PENDING booking → CONFIRMED.
+  @Post(':id/accept')
+  @Roles(UserRole.TECHNICIAN)
+  accept(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.bookings.changeStatus(id, actor, { status: BookingStatus.CONFIRMED });
+  }
+
+  // Technician declines an assigned booking → CANCELLED.
+  @Post(':id/decline')
+  @Roles(UserRole.TECHNICIAN)
+  decline(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.bookings.cancel(id, actor, { reason: 'Declined by technician' });
   }
 
   // Additive (flagged): status progression for technicians/admins. Customers use

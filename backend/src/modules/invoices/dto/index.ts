@@ -32,4 +32,8 @@ export class InvoiceFilterDto extends PaginationQueryDto {
 
   @IsOptional() @IsString()
   dateTo?: string;
+
+  // Admin-only: filter by customer User.id
+  @IsOptional() @IsString()
+  customer_id?: string;
 }

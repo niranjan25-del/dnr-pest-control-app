@@ -5,7 +5,8 @@
 
 import { AdminRole, UserRole, UserStatus } from '@prisma/client';
 import {
-  ArrayUnique, IsArray, IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength,
+  ArrayUnique, IsArray, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches,
+  MaxLength, MinLength,
 } from 'class-validator';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 
@@ -35,6 +36,28 @@ export class UpdateUserRoleDto {
   @IsOptional()
   @IsEnum(AdminRole, { message: 'adminRole must be a valid admin sub-role' })
   adminRole?: AdminRole;
+
+  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  permissions?: string[];
+}
+
+// Create a new admin account (SUPER_ADMIN only).
+export class CreateAdminDto {
+  @IsEmail({}, { message: 'Enter a valid email address' })
+  email!: string;
+
+  @IsString() @IsNotEmpty() @MaxLength(120)
+  fullName!: string;
+
+  @IsString() @MinLength(8, { message: 'Password must be at least 8 characters' })
+  password!: string;
+
+  @IsOptional() @IsString()
+  @Matches(/^\+?[1-9]\d{7,14}$/, { message: 'Phone must be a valid international number' })
+  phone?: string;
+
+  @IsEnum(AdminRole, { message: 'adminRole must be a valid admin sub-role' })
+  adminRole!: AdminRole;
 
   @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
   permissions?: string[];

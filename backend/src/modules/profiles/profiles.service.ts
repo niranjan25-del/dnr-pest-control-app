@@ -43,10 +43,25 @@ export class ProfilesService {
   async getCustomerProfile(userId: string) {
     const profile = await this.prisma.customerProfile.findFirst({
       where: { userId, deletedAt: null },
-      include: { addresses: { where: { deletedAt: null } } },
+      include: {
+        user: { select: { fullName: true, email: true, phone: true, status: true } },
+        addresses: { where: { deletedAt: null }, select: { id: true } },
+      },
     });
     if (!profile) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Customer profile not found' });
-    return profile;
+    return {
+      id: profile.id,
+      user_id: profile.userId,
+      full_name: profile.user.fullName,
+      email: profile.user.email,
+      phone: profile.user.phone,
+      company_name: profile.companyName,
+      customer_type: profile.customerType,
+      status: profile.user.status,
+      address_count: profile.addresses.length,
+      created_at: profile.createdAt,
+      updated_at: profile.updatedAt,
+    };
   }
 
   // ---------- Technician ----------
@@ -103,7 +118,10 @@ export class ProfilesService {
   async getTechnicianProfile(userId: string) {
     const profile = await this.prisma.technicianProfile.findFirst({
       where: { userId, deletedAt: null },
-      include: { serviceAreas: true },
+      include: {
+        serviceAreas: true,
+        user: { select: { fullName: true, email: true, phone: true } },
+      },
     });
     if (!profile) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Technician profile not found' });
     return profile;

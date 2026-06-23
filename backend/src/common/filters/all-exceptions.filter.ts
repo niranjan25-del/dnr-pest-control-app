@@ -74,8 +74,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private mapPrisma(e: Prisma.PrismaClientKnownRequestError): { status: number; code: string; message: string } {
     switch (e.code) {
-      case 'P2002':
-        return { status: HttpStatus.CONFLICT, code: 'CONFLICT', message: 'Resource already exists' };
+      case 'P2002': {
+        const fields = (e.meta?.target as string[] | string | undefined);
+        const field = Array.isArray(fields) ? fields[0] : fields;
+        const label = field === 'email' ? 'email address'
+          : field === 'phone' ? 'phone number'
+          : 'value';
+        return { status: HttpStatus.CONFLICT, code: 'CONFLICT', message: `This ${label} is already registered` };
+      }
       case 'P2025':
         return { status: HttpStatus.NOT_FOUND, code: 'NOT_FOUND', message: 'Resource not found' };
       case 'P2003':

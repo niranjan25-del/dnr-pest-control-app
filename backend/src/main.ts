@@ -1,3 +1,5 @@
+import * as path from 'path';
+import * as fs from 'fs';
 import { VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -32,6 +34,11 @@ async function bootstrap(): Promise<void> {
   });
 
   app.enableShutdownHooks();
+
+  // Serve locally-stored uploads (used when AWS credentials are not set — dev fallback).
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
   const port = config.get<number>('app.port') ?? 3000;
   await app.listen(port);

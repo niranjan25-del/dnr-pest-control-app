@@ -30,6 +30,7 @@ export class ServicesService {
         estimatedDurationMin: dto.estimatedDurationMin, basePrice: dto.basePrice,
         currency: dto.currency ?? 'INR', categoryId: dto.categoryId,
         pestCategoryId: dto.pestCategoryId, isActive: dto.isActive ?? true,
+        warrantyDays: dto.warrantyDays,
       },
     });
     this.logger.log(`Service created: ${service.id} (${slug}) by ${actorId}`);
@@ -47,6 +48,7 @@ export class ServicesService {
         name: dto.name, description: dto.description, estimatedDurationMin: dto.estimatedDurationMin,
         basePrice: dto.basePrice, currency: dto.currency, categoryId: dto.categoryId,
         pestCategoryId: dto.pestCategoryId, isActive: dto.isActive,
+        warrantyDays: dto.warrantyDays,
       },
     });
 

@@ -70,6 +70,9 @@ export class CreateServiceDto {
 
   @IsOptional() @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional() @IsInt() @Min(0)
+  warrantyDays?: number;
 }
 
 export class UpdateServiceDto {
@@ -96,6 +99,9 @@ export class UpdateServiceDto {
 
   @IsOptional() @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional() @IsInt() @Min(0)
+  warrantyDays?: number;
 }
 
 // ---- Filters ----

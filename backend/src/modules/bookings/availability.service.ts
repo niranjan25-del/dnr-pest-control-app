@@ -19,30 +19,39 @@ export interface ResolvedWindow {
 export class AvailabilityService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Validate the requested start and compute the window end from duration + buffer. */
-  resolveWindow(scheduledStart: string, durationMin: number): ResolvedWindow {
+  /**
+   * Validate the requested start and compute the window end from duration + buffer.
+   * When `skipBusinessRules` is true (admin manual bookings) only the date parse is
+   * validated — lead time and business-hours checks are bypassed.
+   */
+  resolveWindow(scheduledStart: string, durationMin: number, skipBusinessRules = false): ResolvedWindow {
     const start = new Date(scheduledStart);
     if (Number.isNaN(start.getTime())) {
       throw new BadRequestException({ code: 'INVALID_DATE', message: 'Invalid scheduled start' });
     }
-    const now = Date.now();
-    if (start.getTime() < now + SCHEDULING.MIN_LEAD_TIME_MIN * 60_000) {
-      throw new BadRequestException({
-        code: 'INVALID_DATE',
-        message: `Bookings must be at least ${SCHEDULING.MIN_LEAD_TIME_MIN / 60} hours in advance`,
-      });
-    }
+
     const end = new Date(start.getTime() + (durationMin + SCHEDULING.SLOT_BUFFER_MIN) * 60_000);
 
-    // Business hours (local time of the server/region — ap-south-1 / IST in production).
-    const startHour = start.getHours();
-    const endHour = end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
-    if (startHour < SCHEDULING.WORKING_HOUR_START || endHour > SCHEDULING.WORKING_HOUR_END) {
-      throw new BadRequestException({
-        code: 'OUTSIDE_BUSINESS_HOURS',
-        message: `Service window must fall within ${SCHEDULING.WORKING_HOUR_START}:00–${SCHEDULING.WORKING_HOUR_END}:00`,
-      });
+    if (!skipBusinessRules) {
+      const now = Date.now();
+      if (start.getTime() < now + SCHEDULING.MIN_LEAD_TIME_MIN * 60_000) {
+        throw new BadRequestException({
+          code: 'INVALID_DATE',
+          message: `Bookings must be at least ${SCHEDULING.MIN_LEAD_TIME_MIN / 60} hours in advance`,
+        });
+      }
+
+      // Business hours (local time of the server/region — ap-south-1 / IST in production).
+      const startHour = start.getHours();
+      const endHour = end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+      if (startHour < SCHEDULING.WORKING_HOUR_START || endHour > SCHEDULING.WORKING_HOUR_END) {
+        throw new BadRequestException({
+          code: 'OUTSIDE_BUSINESS_HOURS',
+          message: `Service window must fall within ${SCHEDULING.WORKING_HOUR_START}:00–${SCHEDULING.WORKING_HOUR_END}:00`,
+        });
+      }
     }
+
     return { start, end };
   }
 

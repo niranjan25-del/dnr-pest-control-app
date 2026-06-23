@@ -42,11 +42,12 @@ export class MediaService {
 
     const key = this.buildKey(policy.ownerType, actor.id, file.originalname);
     await this.s3.putObject(key, file.buffer, contentType);
+    const fileUrl = this.s3.localMode ? this.s3.localUrl(key) : (this.cloudfront.publicUrl(key) ?? key);
 
     const media = await this.prisma.$transaction(async (tx) => {
       const created = await tx.mediaFile.create({
         data: {
-          uploaderId: actor.id, type: mediaTypeFor(contentType), storageKey: key, url: this.cloudfront.publicUrl(key) ?? key,
+          uploaderId: actor.id, type: mediaTypeFor(contentType), storageKey: key, url: fileUrl,
           contentType, sizeBytes, ownerType: policy.ownerType, ownerId: dto.ownerId ?? null,
         },
       });

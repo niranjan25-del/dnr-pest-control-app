@@ -24,9 +24,10 @@ export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 };
 
 // Statuses a technician may set on an assigned booking (progressing the job).
+// CONFIRMED is included so technicians can accept (confirm) a pending assignment.
 export const TECHNICIAN_SETTABLE: BookingStatus[] = [
-  BookingStatus.EN_ROUTE, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS,
-  BookingStatus.COMPLETED, BookingStatus.NO_SHOW,
+  BookingStatus.CONFIRMED, BookingStatus.EN_ROUTE, BookingStatus.ARRIVED,
+  BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED, BookingStatus.NO_SHOW,
 ];
 
 // "Live" statuses that occupy a slot (used for conflict detection + cancel eligibility).

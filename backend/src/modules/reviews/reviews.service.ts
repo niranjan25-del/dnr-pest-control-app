@@ -7,12 +7,16 @@ import { Prisma, ReviewStatus } from '@prisma/client';
 import { PrismaService } from 'src/database/prisma.service';
 import { paginate } from 'src/common/utils/pagination.util';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
 
 export class ReviewFilterDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(ReviewStatus)
   status?: ReviewStatus;
+
+  // Admin-only: filter by customer User.id
+  @IsOptional() @IsString()
+  customer_id?: string;
 }
 
 @Injectable()
@@ -23,6 +27,7 @@ export class ReviewsService {
     const where: Prisma.ReviewWhereInput = {
       deletedAt: null,
       ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.customer_id ? { customer: { userId: filter.customer_id } } : {}),
       ...(filter.search ? {
         OR: [
           { comment: { contains: filter.search, mode: 'insensitive' } },

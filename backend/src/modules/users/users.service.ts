@@ -3,16 +3,24 @@
 // User CRUD + admin management. Authorization is enforced here (defense in depth — the
 // controllers also gate by role): non-admins may only read/update themselves; role changes
 // require SUPER_ADMIN. Status/role changes and soft deletes write an AuditLog row.
+//
+// OWNER PROTECTION: the account whose email matches OWNER_EMAIL is permanently protected —
+// it cannot be suspended, deactivated, deleted, or demoted. This is enforced server-side
+// regardless of who the actor is (even another SUPER_ADMIN cannot remove this account).
 
 import {
-  ForbiddenException, Injectable, Logger, NotFoundException,
+  ConflictException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
 import { AdminRole, Prisma, UserRole, UserStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/database/prisma.service';
 import { paginate } from 'src/common/utils/pagination.util';
 import { Paginated } from 'src/common/interfaces/api-response.interface';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { UpdateUserDto, UpdateUserRoleDto, UpdateUserStatusDto, UserFilterDto } from './dto';
+import { CreateAdminDto, UpdateUserDto, UpdateUserRoleDto, UpdateUserStatusDto, UserFilterDto } from './dto';
+
+const OWNER_EMAIL = 'contact@dnrpestcontrol.in';
+const BCRYPT_ROUNDS = 12;
 
 type UserRow = Prisma.UserGetPayload<{
   select: {
@@ -36,11 +44,16 @@ export class UsersService {
     return actor.role === UserRole.ADMIN;
   }
 
+  private isSuperAdmin(actor: AuthenticatedUser): boolean {
+    return actor.role === UserRole.ADMIN && actor.adminRole === AdminRole.SUPER_ADMIN;
+  }
+
   private toPublic(u: UserRow) {
     return {
       id: u.id, email: u.email, full_name: u.fullName, phone: u.phone, role: u.role,
       admin_role: u.adminRole, permissions: u.permissions, status: u.status,
       email_verified: u.emailVerified, created_at: u.createdAt,
+      is_owner: u.email === OWNER_EMAIL,
     };
   }
 
@@ -89,7 +102,10 @@ export class UsersService {
     if (!this.isAdmin(actor)) {
       throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Admin access required' });
     }
-    await this.ensureExists(id);
+    const target = await this.ensureExists(id);
+    if (target.email === OWNER_EMAIL) {
+      throw new ForbiddenException({ code: 'OWNER_PROTECTED', message: 'The owner account cannot be deleted' });
+    }
     await this.prisma.user.update({
       where: { id },
       data: { deletedAt: new Date(), status: UserStatus.DEACTIVATED },
@@ -131,7 +147,13 @@ export class UsersService {
   // ---- admin: status change ----
   async setStatus(id: string, dto: UpdateUserStatusDto, actor: AuthenticatedUser) {
     if (!this.isAdmin(actor)) throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Admin access required' });
-    await this.ensureExists(id);
+    const target = await this.ensureExists(id);
+    if (target.email === OWNER_EMAIL && dto.status !== UserStatus.ACTIVE) {
+      throw new ForbiddenException({
+        code: 'OWNER_PROTECTED',
+        message: 'The owner account cannot be suspended or deactivated',
+      });
+    }
     const user = await this.prisma.user.update({
       where: { id },
       // Reactivating clears a prior soft-delete tombstone.
@@ -145,10 +167,18 @@ export class UsersService {
 
   // ---- admin: role change (SUPER_ADMIN only — privilege escalation control) ----
   async setRole(id: string, dto: UpdateUserRoleDto, actor: AuthenticatedUser) {
-    if (actor.role !== UserRole.ADMIN || actor.adminRole !== AdminRole.SUPER_ADMIN) {
+    if (!this.isSuperAdmin(actor)) {
       throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Only a Super Admin can change roles' });
     }
-    await this.ensureExists(id);
+    const target = await this.ensureExists(id);
+    if (target.email === OWNER_EMAIL) {
+      if (dto.role !== UserRole.ADMIN || dto.adminRole !== AdminRole.SUPER_ADMIN) {
+        throw new ForbiddenException({
+          code: 'OWNER_PROTECTED',
+          message: 'The owner account role cannot be downgraded',
+        });
+      }
+    }
     const user = await this.prisma.user.update({
       where: { id },
       data: {
@@ -163,10 +193,42 @@ export class UsersService {
     return this.toPublic(user);
   }
 
+  // ---- admin: create admin account (SUPER_ADMIN only) ----
+  async createAdmin(dto: CreateAdminDto, actor: AuthenticatedUser) {
+    if (!this.isSuperAdmin(actor)) {
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Only a Super Admin can create admin accounts' });
+    }
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) {
+      throw new ConflictException({ code: 'EMAIL_IN_USE', message: 'An account with this email already exists' });
+    }
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        fullName: dto.fullName,
+        phone: dto.phone,
+        role: UserRole.ADMIN,
+        adminRole: dto.adminRole,
+        passwordHash,
+        permissions: dto.permissions ?? [],
+        emailVerified: true,
+      },
+      select: PUBLIC_SELECT,
+    });
+    await this.audit(actor.id, 'user.admin_created', user.id, { adminRole: dto.adminRole });
+    this.logger.warn(`Admin ${user.id} (${dto.adminRole}) created by ${actor.id}`);
+    return this.toPublic(user);
+  }
+
   // ---- helpers ----
-  private async ensureExists(id: string): Promise<void> {
-    const exists = await this.prisma.user.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+  private async ensureExists(id: string): Promise<{ email: string; adminRole: AdminRole | null }> {
+    const exists = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, email: true, adminRole: true },
+    });
     if (!exists) throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'User not found' });
+    return exists;
   }
 
   private async audit(actorId: string, action: string, entityId: string, metadata?: Prisma.InputJsonValue) {

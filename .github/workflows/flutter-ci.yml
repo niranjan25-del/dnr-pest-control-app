@@ -1,6 +1,6 @@
 # .github/workflows/flutter-ci.yml
 # Flutter CI: format check → static analysis → tests (coverage) → Android + iOS build
-# validation. Path-filtered to flutter_app/. Codegen runs before analyze/test because the
+# validation. Path-filtered to mobile/. Codegen runs before analyze/test because the
 # project uses freezed/riverpod/json_serializable generators. iOS build is no-codesign (CI
 # validation only; signed builds happen in the mobile release pipeline).
 
@@ -9,13 +9,13 @@ name: Flutter CI
 on:
   push:
     branches: [develop, main]
-    paths: ['flutter_app/**', '.github/workflows/flutter-ci.yml']
+    paths: ['mobile/**', '.github/workflows/flutter-ci.yml']
   pull_request:
-    paths: ['flutter_app/**', '.github/workflows/flutter-ci.yml']
+    paths: ['mobile/**', '.github/workflows/flutter-ci.yml']
 
 defaults:
   run:
-    working-directory: flutter_app
+    working-directory: mobile
 
 concurrency:
   group: flutter-ci-${{ github.ref }}
@@ -45,7 +45,7 @@ jobs:
         if: always()
         with:
           name: flutter-coverage
-          path: flutter_app/coverage/lcov.info
+          path: mobile/coverage/lcov.info
 
   android-build:
     name: Android build validation

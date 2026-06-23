@@ -18,6 +18,7 @@ import { ProfilesService } from '../profiles/profiles.service';
 import { TechnicianAssignmentService } from '../technician-assignment/technician-assignment.service';
 import { BookingsService } from '../bookings/bookings.service';
 import { LocationService } from '../location/location.service';
+import { AttendanceService } from '../attendance/attendance.service';
 import { BookingFilterDto } from '../bookings/dto';
 
 class SetAvailabilityDto {
@@ -32,6 +33,10 @@ class UpdateLocationDto {
   @IsOptional() @IsString() @MaxLength(30) recorded_at?: string;
 }
 
+class PunchDto {
+  @IsOptional() @IsString() @MaxLength(300) note?: string;
+}
+
 @Controller({ path: 'technicians', version: '1' })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.TECHNICIAN)
@@ -41,11 +46,25 @@ export class TechniciansController {
     private readonly assignments: TechnicianAssignmentService,
     private readonly bookings: BookingsService,
     private readonly location: LocationService,
+    private readonly attendance: AttendanceService,
   ) {}
 
   @Get('me')
-  getProfile(@CurrentUser() actor: AuthenticatedUser) {
-    return this.profiles.getTechnicianProfile(actor.id);
+  async getProfile(@CurrentUser() actor: AuthenticatedUser) {
+    const p = await this.profiles.getTechnicianProfile(actor.id);
+    return {
+      id: p.id,
+      user_id: p.userId,
+      full_name: p.user?.fullName ?? '',
+      email: p.user?.email ?? '',
+      phone: p.user?.phone ?? '',
+      license_number: p.licenseNumber,
+      license_expiry: p.licenseExpiry,
+      skills: p.skills,
+      is_available: p.isAvailable,
+      rating_average: p.ratingAverage,
+      jobs_completed: p.jobsCompleted,
+    };
   }
 
   @Get('me/availability')
@@ -72,5 +91,22 @@ export class TechniciansController {
       accuracy: dto.accuracy,
       bookingId: dto.booking_id,
     });
+  }
+
+  // ── Attendance (punch in / out) ─────────────────────────────────────────────
+
+  @Get('me/duty-status')
+  dutyStatus(@CurrentUser() actor: AuthenticatedUser) {
+    return this.attendance.todayStatus(actor);
+  }
+
+  @Post('me/punch-in')
+  punchIn(@CurrentUser() actor: AuthenticatedUser, @Body() dto: PunchDto) {
+    return this.attendance.punchIn(actor, dto.note);
+  }
+
+  @Post('me/punch-out')
+  punchOut(@CurrentUser() actor: AuthenticatedUser, @Body() dto: PunchDto) {
+    return this.attendance.punchOut(actor, dto.note);
   }
 }

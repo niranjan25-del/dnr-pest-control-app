@@ -11,8 +11,15 @@ export interface ScoreBreakdown {
 
 export interface TechnicianCandidate {
   technicianId: string;
+  technician_id: string;
   name: string;
-  score: number;            // 0–100 weighted total
+  full_name: string;
+  score: number;
+  hard_eligible: boolean;
+  serves_area: boolean;
+  has_skill: boolean;
+  active_jobs: number;
+  distance_km: number | null;
   breakdown: ScoreBreakdown;
   distanceKm: number | null;
   dailyActiveJobs: number;

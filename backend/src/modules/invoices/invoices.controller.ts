@@ -5,8 +5,9 @@
 // :id so they aren't captured by the param matcher.
 
 import {
-  Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Query, UseGuards,
+  Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Query, Res, StreamableFile, UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -53,8 +54,15 @@ export class InvoicesController {
   }
 
   @Get(':id/download')
-  download(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
-    return this.invoices.download(id, actor);
+  @Header('Content-Type', 'application/pdf')
+  async download(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.invoices.download(id, actor);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return new StreamableFile(buffer);
   }
 
   @Post(':id/regenerate')

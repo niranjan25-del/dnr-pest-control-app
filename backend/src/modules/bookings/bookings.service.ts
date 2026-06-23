@@ -11,7 +11,7 @@
 import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
-import { BookingStatus, Prisma, UserRole } from '@prisma/client';
+import { BookingPriority, BookingStatus, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from 'src/database/prisma.service';
 import { paginate } from 'src/common/utils/pagination.util';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
@@ -30,10 +30,27 @@ const BOOKING_INCLUDE = {
   package: { select: { id: true, name: true, price: true } },
   address: true,
   customer: { select: { id: true, user: { select: { id: true, fullName: true, email: true, phone: true } } } },
-  assignments: { select: { id: true, technicianId: true, status: true } },
+  assignments: {
+    where: { status: { not: 'CANCELLED' as const } },
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+    select: {
+      id: true, technicianId: true, status: true,
+      technician: { select: { user: { select: { fullName: true } } } },
+    },
+  },
+} satisfies Prisma.BookingInclude;
+
+const BOOKING_DETAIL_INCLUDE = {
+  ...BOOKING_INCLUDE,
+  statusHistory: {
+    orderBy: { createdAt: 'asc' as const },
+    select: { id: true, previousStatus: true, newStatus: true, note: true, createdAt: true },
+  },
 } satisfies Prisma.BookingInclude;
 
 type BookingRow = Prisma.BookingGetPayload<{ include: typeof BOOKING_INCLUDE }>;
+type BookingDetailRow = Prisma.BookingGetPayload<{ include: typeof BOOKING_DETAIL_INCLUDE }>;
 
 @Injectable()
 export class BookingsService {
@@ -62,8 +79,9 @@ export class BookingsService {
     // Resolve price + duration from the chosen service/package (snapshotted onto the booking).
     const { price, durationMin } = await this.resolvePricing(dto);
 
-    const window = this.availability.resolveWindow(dto.scheduledStart, durationMin);
-    await this.availability.assertSlotAvailable(window);
+    const isAdmin = actor.role === UserRole.ADMIN;
+    const window = this.availability.resolveWindow(dto.scheduledStart, durationMin, isAdmin);
+    if (!isAdmin) await this.availability.assertSlotAvailable(window);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.create({
@@ -71,6 +89,7 @@ export class BookingsService {
           customerId, serviceId: dto.serviceId, packageId: dto.packageId, addressId: dto.addressId,
           status: BookingStatus.PENDING, scheduledWindowStart: window.start, scheduledWindowEnd: window.end,
           price, currency: 'INR', notes: dto.notes,
+          priority: dto.priority ?? BookingPriority.NORMAL,
         },
       });
       await tx.bookingStatusHistory.create({
@@ -97,7 +116,7 @@ export class BookingsService {
   async findOne(id: string, actor: AuthenticatedUser) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, deletedAt: null, ...(await this.scope(actor)) },
-      include: BOOKING_INCLUDE,
+      include: BOOKING_DETAIL_INCLUDE,
     });
     if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
     return this.toResponse(booking);
@@ -111,6 +130,7 @@ export class BookingsService {
       ...(filter.serviceId ? { serviceId: filter.serviceId } : {}),
       ...(filter.categoryId ? { service: { categoryId: filter.categoryId } } : {}),
       ...(filter.technicianId ? { assignments: { some: { technicianId: filter.technicianId } } } : {}),
+      ...(filter.customer_id ? { customer: { userId: filter.customer_id } } : {}),
       ...(this.dateRange(filter.dateFrom, filter.dateTo)),
       ...(filter.search
         ? { customer: { user: { OR: [
@@ -223,6 +243,9 @@ export class BookingsService {
       await this.status.transition(tx, {
         bookingId: id, current: booking.status, next: dto.status, changedById: actor.id, note: dto.note,
       });
+      if (dto.status === BookingStatus.COMPLETED) {
+        await this.createWarrantyIfApplicable(tx, booking);
+      }
       return tx.booking.findUniqueOrThrow({ where: { id }, include: BOOKING_INCLUDE });
     });
     return this.toResponse(updated);
@@ -326,28 +349,87 @@ export class BookingsService {
     return { price: service.basePrice, durationMin: service.estimatedDurationMin };
   }
 
-  private toResponse(b: BookingRow) {
+  private toResponse(b: BookingRow | BookingDetailRow) {
+    const activeAssignment = b.assignments?.[0] ?? null;
     return {
       id: b.id,
       booking_number: formatBookingNumber(b.id, b.createdAt),
       status: b.status,
-      scheduled_start: b.scheduledWindowStart,
-      scheduled_end: b.scheduledWindowEnd,
+      // Use scheduled_window_* to match frontend expectations
+      scheduled_window_start: b.scheduledWindowStart,
+      scheduled_window_end: b.scheduledWindowEnd,
       price: Number(b.price),
       discount_amount: Number(b.discountAmount),
       currency: b.currency,
       notes: b.notes,
       cancellation_reason: b.cancellationReason,
       cancellation_fee_applied: b.cancellationFeeApplied,
+      // Flat fields for list + technician portal
+      service_name: b.service?.name ?? null,
+      customer_name: b.customer?.user?.fullName ?? null,
+      customer_phone: b.customer?.user?.phone ?? null,
+      technician_name: activeAssignment?.technician?.user?.fullName ?? null,
+      address_line: b.address
+        ? [b.address.line1, b.address.line2, b.address.city, b.address.state].filter(Boolean).join(', ')
+        : null,
+      access_notes: b.address?.accessNotes ?? null,
+      needs_acceptance: b.status === BookingStatus.PENDING,
+      // Nested objects for detail view
       service: b.service ? { id: b.service.id, name: b.service.name } : null,
       package: b.package ? { id: b.package.id, name: b.package.name } : null,
-      address: b.address,
+      address: b.address
+        ? {
+            id: b.address.id,
+            line1: b.address.line1,
+            line2: b.address.line2,
+            city: b.address.city,
+            state: b.address.state,
+            postal_code: b.address.postalCode,
+            country: b.address.country,
+            access_notes: b.address.accessNotes,
+          }
+        : null,
       customer: b.customer
-        ? { id: b.customer.id, name: b.customer.user.fullName, email: b.customer.user.email, phone: b.customer.user.phone }
+        ? {
+            id: b.customer.id,
+            full_name: b.customer.user.fullName,
+            email: b.customer.user.email,
+            phone: b.customer.user.phone,
+          }
+        : null,
+      technician: activeAssignment
+        ? { id: activeAssignment.technicianId, full_name: activeAssignment.technician?.user?.fullName ?? null }
         : null,
       assignments: b.assignments,
+      status_history: (b as BookingDetailRow).statusHistory?.map((h) => ({
+        id: String(h.id),
+        previous_status: h.previousStatus,
+        new_status: h.newStatus,
+        note: h.note,
+        created_at: h.createdAt,
+      })),
+      priority: b.priority,
       created_at: b.createdAt,
       updated_at: b.updatedAt,
     };
+  }
+
+  private async createWarrantyIfApplicable(
+    tx: Prisma.TransactionClient,
+    booking: { id: string; serviceId: string | null },
+  ): Promise<void> {
+    if (!booking.serviceId) return;
+    const service = await tx.service.findUnique({
+      where: { id: booking.serviceId },
+      select: { name: true, warrantyDays: true },
+    });
+    if (!service || service.warrantyDays <= 0) return;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + service.warrantyDays);
+    await tx.serviceWarranty.upsert({
+      where: { bookingId: booking.id },
+      create: { bookingId: booking.id, serviceName: service.name, warrantyDays: service.warrantyDays, expiresAt },
+      update: { expiresAt, isActive: true },
+    });
   }
 }

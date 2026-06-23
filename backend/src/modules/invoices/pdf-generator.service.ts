@@ -4,7 +4,7 @@
 // document in memory (invoices are small) and resolves the complete Buffer.
 
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 import { renderInvoice } from './templates/invoice.template';
 import { InvoicePdfData } from './interfaces';
 

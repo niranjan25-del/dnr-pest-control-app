@@ -35,7 +35,7 @@ export class PaymentsController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Returns { order_id, payment_session_id, ... } — Flutter SDK uses payment_session_id
+  // Returns { order_id, payment_session_id, ... } — JS SDK uses payment_session_id
   // to launch Cashfree checkout, then calls /confirm with order_id after completion.
   @Post('create-intent')
   @Roles(UserRole.CUSTOMER, UserRole.ADMIN)
