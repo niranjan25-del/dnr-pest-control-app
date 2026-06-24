@@ -57,6 +57,7 @@ export class UpdateCouponDto {
 }
 
 // Validate (preview) or redeem against a booking or subscription (base amount derived from it).
+// `amount` is accepted when no bookingId/subscriptionId exists yet (e.g. pre-booking preview).
 export class ValidateCouponDto {
   @IsString() @IsNotEmpty({ message: 'Coupon code is required' })
   code!: string;
@@ -66,6 +67,9 @@ export class ValidateCouponDto {
 
   @IsOptional() @IsUUID('4')
   subscriptionId?: string;
+
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0)
+  amount?: number;
 }
 
 export class RedeemCouponDto extends ValidateCouponDto {}

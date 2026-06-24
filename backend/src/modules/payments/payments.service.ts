@@ -109,7 +109,18 @@ export class PaymentsService {
     if (!payment) throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: 'Payment not found' });
 
     const order = await this.cashfree.fetchOrder(orderId);
-    await this.syncFromOrder(orderId, order.orderStatus);
+    let effectiveStatus = order.orderStatus;
+
+    // Cashfree returns ACTIVE briefly after the user authorizes payment (authorization ≠ settlement).
+    // If the order hasn't settled yet, check payment-level status for an early SUCCESS signal.
+    if (effectiveStatus === 'ACTIVE') {
+      const payments = await this.cashfree.getOrderPayments(orderId);
+      if (payments.some((p) => p.paymentStatus === 'SUCCESS')) {
+        effectiveStatus = 'PAID';
+      }
+    }
+
+    await this.syncFromOrder(orderId, effectiveStatus);
     return this.findById(payment.id, actor);
   }
 

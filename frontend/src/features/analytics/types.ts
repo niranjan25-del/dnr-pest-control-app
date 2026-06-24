@@ -4,7 +4,7 @@
 // "large datasets" stay fast. Field names mirror the analytics module; parsing is defensive
 // (see api.ts) since a few names are confirm items.
 
-export type Granularity = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+export type Granularity = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'ANNUAL';
 
 export interface AnalyticsFilters {
   from: string; // ISO date

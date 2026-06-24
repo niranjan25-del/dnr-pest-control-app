@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import {
-  Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, List, ListItemButton,
+  Alert, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, List, ListItemButton,
   ListItemText, Radio, Stack, TextField, Typography,
 } from '@mui/material';
 import { LoadingScreen } from '@/components/feedback';
@@ -46,29 +46,37 @@ export function AssignTechnicianDialog({ bookingId, open, mode, onClose }: Props
         )}
         {candidates && candidates.length > 0 && (
           <List>
-            {candidates.map((c) => {
-              const matchLabel = c.serves_area && c.has_skill
-                ? 'Best match'
-                : c.serves_area
-                ? 'Area match'
-                : c.has_skill
-                ? 'Skill match'
-                : 'Can assign';
-              return (
-                <ListItemButton key={c.technician_id} selected={selected === c.technician_id} onClick={() => setSelected(c.technician_id)}>
-                  <Radio checked={selected === c.technician_id} tabIndex={-1} />
-                  <ListItemText
-                    primary={c.full_name}
-                    secondary={[
-                      matchLabel,
-                      c.active_jobs != null ? `${c.active_jobs} active jobs` : null,
-                      c.distance_km != null ? `${c.distance_km.toFixed(1)} km` : null,
-                      c.score != null ? `score ${c.score.toFixed(0)}` : null,
-                    ].filter(Boolean).join('  ·  ')}
-                  />
-                </ListItemButton>
-              );
-            })}
+            {[...candidates]
+              .sort((a, b) => (b.is_available ? 1 : 0) - (a.is_available ? 1 : 0) || (b.score ?? 0) - (a.score ?? 0))
+              .map((c) => {
+                const matchLabel = c.serves_area ? 'Covers area' : 'Can assign';
+                return (
+                  <ListItemButton
+                    key={c.technician_id}
+                    selected={selected === c.technician_id}
+                    onClick={() => setSelected(c.technician_id)}
+                    sx={{ opacity: c.is_available === false ? 0.65 : 1 }}
+                  >
+                    <Radio checked={selected === c.technician_id} tabIndex={-1} />
+                    <ListItemText
+                      primary={
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="body2" fontWeight={500}>{c.full_name}</Typography>
+                          {c.is_available === false && (
+                            <Chip label="Unavailable" size="small" sx={{ height: 18, fontSize: 10, bgcolor: '#FF980018', color: '#E65100' }} />
+                          )}
+                        </Stack>
+                      }
+                      secondary={[
+                        matchLabel,
+                        c.active_jobs != null ? `${c.active_jobs} active jobs` : null,
+                        c.distance_km != null ? `${c.distance_km.toFixed(1)} km` : null,
+                        c.score != null ? `score ${c.score.toFixed(0)}` : null,
+                      ].filter(Boolean).join('  ·  ')}
+                    />
+                  </ListItemButton>
+                );
+              })}
           </List>
         )}
         {mode === 'reassign' && (

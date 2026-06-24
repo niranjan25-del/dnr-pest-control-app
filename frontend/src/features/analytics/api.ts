@@ -71,7 +71,7 @@ export const analyticsApi = {
     const { data } = await apiClient.get('/analytics/revenue', { params: params(f) });
     const d = unwrap<Record<string, unknown>>(data);
     return {
-      total: num(d.total),
+      total: num(d.net_revenue ?? d.total),
       currency: String(d.currency ?? 'INR'),
       series: series(d.series ?? d.time_series),
       by_service: breakdown(d.by_service, ['service', 'service_name', 'label']),
@@ -86,7 +86,7 @@ export const analyticsApi = {
       completed: num(d.completed),
       cancelled: num(d.cancelled),
       no_show: num(d.no_show),
-      series: series(d.series ?? d.time_series),
+      series: series(d.trends ?? d.series ?? d.time_series),
       cancellations: series(d.cancellations ?? d.cancellation_series),
       by_status: breakdown(d.by_status, ['status', 'label']),
     };
@@ -98,7 +98,7 @@ export const analyticsApi = {
     return {
       new_customers: num(d.new ?? d.new_customers),
       active_customers: num(d.active ?? d.active_customers),
-      retention_pct: num(d.retention_pct ?? d.retention),
+      retention_pct: num(d.retention_pct ?? d.retention ?? d.retention_rate),
       lifetime_value: d.lifetime_value != null ? num(d.lifetime_value) : undefined,
       series: series(d.series ?? d.new_series),
     };
@@ -123,7 +123,7 @@ export const analyticsApi = {
     const { data } = await apiClient.get('/analytics/subscriptions', { params: params(f) });
     const d = unwrap<Record<string, unknown>>(data);
     return {
-      active: num(d.active),
+      active: num(d.active ?? d.active_subscriptions),
       churn_rate_pct: num(d.churn_rate_pct ?? d.churn_rate),
       renewal_rate_pct: num(d.renewal_rate_pct ?? d.renewal_rate),
       series: series(d.series),

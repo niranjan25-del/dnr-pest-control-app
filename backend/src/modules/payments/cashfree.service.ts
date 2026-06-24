@@ -118,6 +118,19 @@ export class CashfreeService {
     await this.cf.PGCustomerDeleteInstrument(customerId, instrumentId);
   }
 
+  /** Fetch all payments attempted on an order. Used to detect SUCCESS when order is still ACTIVE. */
+  async getOrderPayments(orderId: string): Promise<{ paymentStatus: string }[]> {
+    try {
+      const { data } = await this.cf.PGOrderFetchPayments(orderId);
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map((p: Record<string, unknown>) => ({
+        paymentStatus: String(p.payment_status ?? ''),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
   /** Verify Cashfree webhook signature. Throws if the signature is invalid. */
   verifyWebhookSignature(signature: string, rawBody: string, timestamp: string): void {
     this.cf.PGVerifyWebhookSignature(signature, rawBody, timestamp);

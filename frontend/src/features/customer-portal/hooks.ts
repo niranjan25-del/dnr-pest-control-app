@@ -168,6 +168,27 @@ export function useMyServiceReport(id: string) {
   });
 }
 
+// ── Coupons ───────────────────────────────────────────────────────────────────
+
+export function useValidateCoupon() {
+  return useMutation({
+    mutationFn: (vars: { code: string; bookingId?: string; amount?: number }) =>
+      customerPortalApi.validateCoupon(vars.code, { bookingId: vars.bookingId, amount: vars.amount }),
+  });
+}
+
+export function useRedeemCoupon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, bookingId }: { code: string; bookingId: string }) =>
+      customerPortalApi.redeemCoupon(code, bookingId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['customer-portal', 'booking', vars.bookingId] });
+      qc.invalidateQueries({ queryKey: ['customer-portal', 'bookings'] });
+    },
+  });
+}
+
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
 export function useSubmitReview() {
@@ -230,6 +251,17 @@ export function useWarrantyForBooking(bookingId: string) {
     queryFn: () => customerPortalApi.getWarrantyForBooking(bookingId),
     enabled: Boolean(bookingId),
     retry: false,
+  });
+}
+
+// ── Service Area Coverage ─────────────────────────────────────────────────────
+
+export function useCheckCoverage(postalCode: string) {
+  return useQuery({
+    queryKey: ['service-areas', 'coverage', postalCode],
+    queryFn: () => customerPortalApi.checkCoverage(postalCode),
+    enabled: Boolean(postalCode),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

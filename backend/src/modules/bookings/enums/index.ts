@@ -46,9 +46,9 @@ export function isTransitionAllowed(from: BookingStatus, to: BookingStatus): boo
 // --- Scheduling rules (defaults; promote to ConfigService/DB if they must be tunable live) ---
 export const SCHEDULING = {
   WORKING_HOUR_START: 9,   // 09:00 local
-  WORKING_HOUR_END: 18,    // 18:00 local — window must END by this hour
+  WORKING_HOUR_END: 21,    // 21:00 local — window must END by this hour
   SLOT_BUFFER_MIN: 30,     // buffer added after the service duration
-  MIN_LEAD_TIME_MIN: 120,  // earliest a booking may be scheduled from "now"
+  MIN_LEAD_TIME_MIN: 300,  // earliest a booking may be scheduled from "now" (5 hours)
   MAX_CONCURRENT_PER_SLOT: 5, // capacity model pre-assignment (overlapping live bookings)
 } as const;
 

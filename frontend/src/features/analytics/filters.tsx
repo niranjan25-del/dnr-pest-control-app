@@ -24,7 +24,7 @@ export function useAnalyticsFilters() {
     () => ({
       from: params.get('from') ?? def.from,
       to: params.get('to') ?? def.to,
-      granularity: (params.get('granularity') as Granularity) ?? 'MONTH',
+      granularity: (params.get('granularity') as Granularity) ?? 'MONTHLY',
       service_id: params.get('service_id') ?? undefined,
       technician_id: params.get('technician_id') ?? undefined,
       region: params.get('region') ?? undefined,
@@ -70,7 +70,7 @@ export function AnalyticsFiltersBar() {
         value={filters.granularity}
         onChange={(_, v) => v && patch({ granularity: v })}
       >
-        {(['DAY', 'WEEK', 'MONTH', 'YEAR'] as Granularity[]).map((g) => (
+        {(['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUAL'] as Granularity[]).map((g) => (
           <ToggleButton key={g} value={g}>{g[0] + g.slice(1).toLowerCase()}</ToggleButton>
         ))}
       </ToggleButtonGroup>

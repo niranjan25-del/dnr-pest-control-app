@@ -2,6 +2,8 @@
 // Subscription oversight: status filter + per-row pause / resume / cancel (confirmed).
 
 import { Button, Chip, MenuItem, Stack, TextField } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import LayersIcon from '@mui/icons-material/Layers';
 import { Can, PageHeader, useConfirm } from '@/components/common';
 import { DataTable, type Column } from '@/components/table/DataTable';
 import { SearchFilterBar } from '@/components/table/SearchFilterBar';
@@ -11,11 +13,13 @@ import { ApiError } from '@/types';
 import { useToast } from '@/providers/ToastProvider';
 import { useSubscriptions, useSubscriptionAction } from './hooks';
 import type { SubscriptionRow, SubscriptionStatus } from './types';
+import { paths } from '@/routes/paths';
 
 const statusColor = (s: SubscriptionStatus): 'success' | 'warning' | 'default' | 'error' =>
   s === 'ACTIVE' ? 'success' : s === 'PAUSED' ? 'warning' : s === 'CANCELLED' || s === 'EXPIRED' ? 'error' : 'default';
 
 export function SubscriptionsListPage() {
+  const navigate = useNavigate();
   const table = useServerTable({ filterKeys: ['status'] });
   const { data, isLoading, isFetching, error, refetch } = useSubscriptions(table.apiParams);
   const action = useSubscriptionAction();
@@ -56,7 +60,22 @@ export function SubscriptionsListPage() {
 
   return (
     <>
-      <PageHeader title="Subscriptions" subtitle="Recurring service plans" />
+      <PageHeader
+        title="Subscriptions"
+        subtitle="Recurring service plans"
+        actions={
+          <Can permission={Permission.ManagePricing}>
+            <Button
+              variant="outlined"
+              startIcon={<LayersIcon />}
+              onClick={() => navigate(paths.plans)}
+              size="small"
+            >
+              Manage plans
+            </Button>
+          </Can>
+        }
+      />
       <SearchFilterBar search={table.search} onSearch={table.setSearch} placeholder="Search customer…">
         <TextField select size="small" label="Status" sx={{ minWidth: 150 }} value={table.filters.status ?? ''} onChange={(e) => table.setFilter('status', e.target.value || undefined)}>
           <MenuItem value="">All</MenuItem>

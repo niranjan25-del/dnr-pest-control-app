@@ -31,7 +31,11 @@ export class WorkloadService {
     return {
       technicianId,
       status: { in: ACTIVE_ASSIGNMENT_STATUSES },
-      booking: { deletedAt: null, scheduledWindowStart: { gte: start, lt: end } },
+      booking: {
+        deletedAt: null,
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        scheduledWindowStart: { gte: start, lt: end },
+      },
     };
   }
 

@@ -36,7 +36,7 @@ export interface BookingStatusEntry {
   created_at: string;
 }
 
-export type BookingPriority = 'NORMAL' | 'HIGH' | 'EMERGENCY';
+export type BookingPriority = 'NORMAL' | 'HIGH';
 
 export interface CustomerBooking {
   id: string;
@@ -63,8 +63,18 @@ export interface CustomerBooking {
     country: string; access_notes?: string | null;
   } | null;
   status_history?: BookingStatusEntry[];
+  has_review?: boolean;
+  discount_amount?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface CouponPreview {
+  valid: boolean;
+  code: string;
+  discount_amount: number;
+  final_amount: number;
+  reason?: string;
 }
 
 export interface CustomerInvoice {

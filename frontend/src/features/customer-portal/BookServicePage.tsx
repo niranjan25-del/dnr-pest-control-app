@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress,
@@ -8,6 +8,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ClearIcon from '@mui/icons-material/Clear';
 import ContentPasteIcon from '@mui/icons-material/ContentPaste';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import HomeIcon from '@mui/icons-material/Home';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -18,8 +19,10 @@ import { paths } from '@/routes/paths';
 import {
   useAvailableServices, useAvailablePackages,
   useMyAddresses, useCreateBooking,
+  useValidateCoupon, useRedeemCoupon,
+  useCheckCoverage,
 } from './hooks';
-import type { CustomerAddress, PackageOption, ServiceOption } from './types';
+import type { CouponPreview, CustomerAddress, PackageOption, ServiceOption } from './types';
 
 const BRAND = '#1565C0';
 
@@ -315,14 +318,22 @@ function LocationSection({
 }
 
 function Step2Address({
-  selected, onSelect, locationLink, onLocationLink,
+  selected, onSelect, locationLink, onLocationLink, onCoverageChange,
 }: {
   selected: CustomerAddress | null;
   onSelect: (a: CustomerAddress) => void;
   locationLink: string;
   onLocationLink: (v: string) => void;
+  onCoverageChange: (covered: boolean | null) => void;
 }) {
   const { data: addresses = [], isLoading } = useMyAddresses();
+  const selectedPostalCode = selected ? (selected.postalCode ?? selected.postal_code ?? '') : '';
+  const { data: coverage, isLoading: coverageLoading } = useCheckCoverage(selectedPostalCode);
+
+  useEffect(() => {
+    if (!selectedPostalCode) { onCoverageChange(null); return; }
+    if (coverage) onCoverageChange(coverage.covered);
+  }, [coverage, selectedPostalCode, onCoverageChange]);
 
   if (isLoading) return <Box textAlign="center" py={4}><CircularProgress /></Box>;
 
@@ -375,6 +386,26 @@ function Step2Address({
         })}
       </Stack>
 
+      {/* Coverage status */}
+      {selected && (
+        <Box sx={{ mt: 1.5 }}>
+          {coverageLoading ? (
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 1 }}>
+              <CircularProgress size={14} />
+              <Typography variant="caption" color="text.secondary">Checking if we service this area…</Typography>
+            </Stack>
+          ) : coverage?.covered === true ? (
+            <Alert severity="success" sx={{ py: 0.5 }}>
+              We service this area — you're good to go!
+            </Alert>
+          ) : coverage?.covered === false ? (
+            <Alert severity="error" sx={{ py: 0.5 }}>
+              Sorry, we don't currently service postal code <b>{selectedPostalCode}</b>. Please try a different address or contact us.
+            </Alert>
+          ) : null}
+        </Box>
+      )}
+
       <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
         Need to add a new address? Go to My Profile → Addresses and add it, then come back here.
       </Typography>
@@ -388,21 +419,21 @@ function Step2Address({
 // ── Step 3: Date & Time ───────────────────────────────────────────────────────
 
 const TIME_SLOTS = [
-  { label: 'Early morning (7:00 AM)', value: '07:00' },
   { label: 'Morning (9:00 AM)', value: '09:00' },
   { label: 'Mid morning (10:30 AM)', value: '10:30' },
   { label: 'Afternoon (12:00 PM)', value: '12:00' },
   { label: 'Early afternoon (2:00 PM)', value: '14:00' },
   { label: 'Late afternoon (4:00 PM)', value: '16:00' },
   { label: 'Evening (6:00 PM)', value: '18:00' },
+  { label: 'Evening (7:00 PM)', value: '19:00' },
+  { label: 'Evening (8:00 PM)', value: '20:00' },
 ];
 
-type Priority = 'NORMAL' | 'HIGH' | 'EMERGENCY';
+type Priority = 'NORMAL' | 'HIGH';
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; desc: string; color: string }[] = [
-  { value: 'NORMAL',    label: 'Standard',  desc: 'Schedule within 1–3 days',    color: '#4CAF50' },
-  { value: 'HIGH',      label: 'Priority',  desc: 'Need service within 24 hours', color: '#FF9800' },
-  { value: 'EMERGENCY', label: 'Emergency', desc: 'Severe infestation — ASAP',    color: '#F44336' },
+  { value: 'NORMAL', label: 'Standard', desc: 'Schedule within 1–3 days',    color: '#4CAF50' },
+  { value: 'HIGH',   label: 'Priority', desc: 'Assigned within 3 hours · +5%', color: '#FF9800' },
 ];
 
 function Step3DateTime({
@@ -415,9 +446,29 @@ function Step3DateTime({
   onNotes: (v: string) => void;
   onPriority: (v: Priority) => void;
 }) {
-  const today = new Date();
-  today.setDate(today.getDate() + 1);
-  const minDate = today.toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const getAvailableSlots = (selectedDate: string) => {
+    if (selectedDate !== todayStr) return TIME_SLOTS;
+    const cutoff = Date.now() + 5 * 60 * 60 * 1000; // 5 hours from now
+    return TIME_SLOTS.filter((s) => {
+      const [h, m] = s.value.split(':').map(Number);
+      const slotTime = new Date();
+      slotTime.setHours(h, m, 0, 0);
+      return slotTime.getTime() >= cutoff;
+    });
+  };
+
+  const availableSlots = getAvailableSlots(date);
+  const isToday = date === todayStr;
+
+  const handleDateChange = (v: string) => {
+    onDate(v);
+    const slots = getAvailableSlots(v);
+    if (slots.length > 0 && !slots.find((s) => s.value === time)) {
+      onTime(slots[0].value);
+    }
+  };
 
   return (
     <Stack spacing={2.5}>
@@ -455,11 +506,6 @@ function Step3DateTime({
             );
           })}
         </Stack>
-        {priority === 'EMERGENCY' && (
-          <Alert severity="error" sx={{ mt: 1 }}>
-            Emergency bookings are confirmed within 2 hours during business hours (8 AM – 8 PM). An extra emergency service charge may apply.
-          </Alert>
-        )}
       </Box>
 
       <TextField
@@ -468,10 +514,10 @@ function Step3DateTime({
         fullWidth
         required
         value={date}
-        onChange={(e) => onDate(e.target.value)}
+        onChange={(e) => handleDateChange(e.target.value)}
         InputLabelProps={{ shrink: true }}
-        inputProps={{ min: minDate }}
-        helperText="Minimum 1 day advance booking (same-day for Emergency)"
+        inputProps={{ min: todayStr }}
+        helperText="Same-day bookings are available — slots must be at least 5 hours from now"
       />
 
       <TextField
@@ -481,9 +527,12 @@ function Step3DateTime({
         required
         value={time}
         onChange={(e) => onTime(e.target.value)}
-        helperText="Our team will confirm the exact time"
+        helperText={isToday && availableSlots.length === 0
+          ? 'No slots available today — please select a future date'
+          : 'Our team will confirm the exact time'}
+        error={isToday && availableSlots.length === 0}
       >
-        {TIME_SLOTS.map((s) => (
+        {availableSlots.map((s) => (
           <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
         ))}
       </TextField>
@@ -505,11 +554,15 @@ function Step3DateTime({
 
 // ── Step 4: Review & Confirm ──────────────────────────────────────────────────
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
       <Typography variant="body2" color="text.secondary" sx={{ minWidth: 120 }}>{label}</Typography>
-      <Typography variant="body2" fontWeight={600} textAlign="right" sx={{ flex: 1, ml: 2 }}>{value}</Typography>
+      <Box textAlign="right" sx={{ flex: 1, ml: 2 }}>
+        {typeof value === 'string'
+          ? <Typography variant="body2" fontWeight={600}>{value}</Typography>
+          : value}
+      </Box>
     </Stack>
   );
 }
@@ -544,7 +597,7 @@ function ReviewLocationRow({ locationLink }: { locationLink: string }) {
 }
 
 function Step4Confirm({
-  selection, address, date, time, notes, locationLink, priority,
+  selection, address, date, time, notes, locationLink, priority, onCouponApplied,
 }: {
   selection: Selection;
   address: CustomerAddress;
@@ -553,14 +606,51 @@ function Step4Confirm({
   notes: string;
   locationLink: string;
   priority: Priority;
+  onCouponApplied: (coupon: { code: string; discountAmount: number } | null) => void;
 }) {
-  const price = getPrice(selection.item);
+  const basePrice = getPrice(selection.item);
+  const displayPrice = priority === 'HIGH' ? Math.round(basePrice * 1.05 * 100) / 100 : basePrice;
   const postalCode = address.postalCode ?? address.postal_code ?? '';
+
+  const [couponInput,   setCouponInput]   = useState('');
+  const [couponPreview, setCouponPreview] = useState<CouponPreview | null>(null);
+  const [couponError,   setCouponError]   = useState('');
+  const validateCoupon = useValidateCoupon();
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponError('');
+    try {
+      const result = await validateCoupon.mutateAsync({ code, amount: displayPrice });
+      if (result.valid) {
+        setCouponPreview(result);
+        onCouponApplied({ code, discountAmount: result.discount_amount });
+      } else {
+        setCouponPreview(null);
+        setCouponError(result.reason ?? 'Invalid or expired coupon code.');
+        onCouponApplied(null);
+      }
+    } catch {
+      setCouponError('Could not validate coupon. Please try again.');
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponInput('');
+    setCouponPreview(null);
+    setCouponError('');
+    onCouponApplied(null);
+  };
 
   const formattedDate = new Date(`${date}T${time}`).toLocaleString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
+
+  const priceLabel = priority === 'HIGH'
+    ? `${formatMoney(displayPrice, 'INR')} (${formatMoney(basePrice, 'INR')} + 5% priority)`
+    : formatMoney(displayPrice, 'INR');
 
   return (
     <Box>
@@ -580,23 +670,83 @@ function Step4Confirm({
           />
           {locationLink && <ReviewLocationRow locationLink={locationLink} />}
           <ReviewRow label="Scheduled" value={formattedDate} />
-          <ReviewRow label="Estimated price" value={formatMoney(price, 'INR')} />
-          {priority !== 'NORMAL' && (
-            <ReviewRow
-              label="Urgency"
-              value={priority === 'EMERGENCY' ? '🚨 Emergency' : '⚡ High Priority'}
-            />
+          {couponPreview ? (
+            <>
+              <ReviewRow label={priority === 'HIGH' ? 'Price (+ priority)' : 'Base price'} value={priceLabel} />
+              <ReviewRow
+                label="Coupon discount"
+                value={
+                  <Typography variant="body2" fontWeight={700} sx={{ color: '#2E7D32' }}>
+                    -{formatMoney(couponPreview.discount_amount, 'INR')}
+                  </Typography>
+                }
+              />
+              <ReviewRow
+                label="You pay"
+                value={
+                  <Typography variant="body2" fontWeight={800} sx={{ color: BRAND }}>
+                    {formatMoney(couponPreview.final_amount, 'INR')}
+                  </Typography>
+                }
+              />
+            </>
+          ) : (
+            <>
+              <ReviewRow label="Estimated price" value={priceLabel} />
+              {priority === 'HIGH' && <ReviewRow label="Urgency" value="⚡ High Priority" />}
+            </>
           )}
           {notes && <ReviewRow label="Notes" value={notes} />}
         </CardContent>
       </Card>
 
+      {/* Coupon code input */}
+      <Card variant="outlined" sx={{ mt: 2, borderStyle: 'dashed' }}>
+        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+          <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1.25 }}>
+            <LocalOfferIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 0.5 }}>
+              COUPON CODE
+            </Typography>
+          </Stack>
+          {couponPreview ? (
+            <Chip
+              icon={<LocalOfferIcon sx={{ fontSize: '0.9rem !important' }} />}
+              label={`${couponPreview.code} · -${formatMoney(couponPreview.discount_amount, 'INR')}`}
+              color="success"
+              variant="outlined"
+              onDelete={handleRemoveCoupon}
+              sx={{ fontWeight: 700, fontFamily: 'monospace' }}
+            />
+          ) : (
+            <Stack direction="row" spacing={1} alignItems="flex-start">
+              <TextField
+                size="small"
+                placeholder="E.g. SAVE20"
+                value={couponInput}
+                onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleApplyCoupon(); } }}
+                error={Boolean(couponError)}
+                helperText={couponError || ' '}
+                sx={{ flex: 1 }}
+                inputProps={{ style: { textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: 1 } }}
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => void handleApplyCoupon()}
+                disabled={!couponInput.trim() || validateCoupon.isPending}
+                sx={{ whiteSpace: 'nowrap', mt: 0.25 }}
+              >
+                {validateCoupon.isPending ? <CircularProgress size={16} /> : 'Apply'}
+              </Button>
+            </Stack>
+          )}
+        </CardContent>
+      </Card>
+
       {locationLink && (
-        <Alert
-          severity="success"
-          icon={<MyLocationIcon fontSize="inherit" />}
-          sx={{ mt: 2 }}
-        >
+        <Alert severity="success" icon={<MyLocationIcon fontSize="inherit" />} sx={{ mt: 2 }}>
           Your location pin is attached. The technician will use it to find your exact spot.
         </Alert>
       )}
@@ -624,21 +774,29 @@ const STEPS = ['Choose service', 'Service address', 'Date & time', 'Confirm'];
 export function BookServicePage() {
   const navigate = useNavigate();
   const createBooking = useCreateBooking();
+  const redeemCoupon  = useRedeemCoupon();
 
   const [activeStep, setActiveStep] = useState(0);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [address, setAddress] = useState<CustomerAddress | null>(null);
+  const [coverageOk, setCoverageOk] = useState<boolean | null>(null);
   const [locationLink, setLocationLink] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('09:00');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState<Priority>('NORMAL');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number } | null>(null);
   const [submitError, setSubmitError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  const handleAddressSelect = (addr: CustomerAddress) => {
+    setAddress(addr);
+    setCoverageOk(null); // reset until coverage check resolves for new address
+  };
+
   const canNext = () => {
     if (activeStep === 0) return Boolean(selection);
-    if (activeStep === 1) return Boolean(address);
+    if (activeStep === 1) return Boolean(address) && coverageOk === true;
     if (activeStep === 2) return Boolean(date && time);
     return true;
   };
@@ -654,13 +812,18 @@ export function BookServicePage() {
     const combinedNotes = buildNotes(locationLink, notes);
 
     try {
-      await createBooking.mutateAsync({
+      const newBooking = await createBooking.mutateAsync({
         ...(selection.type === 'service' ? { serviceId: selection.item.id } : { packageId: selection.item.id }),
         addressId: address.id,
         scheduledStart,
         ...(combinedNotes ? { notes: combinedNotes } : {}),
         ...(priority !== 'NORMAL' ? { priority } : {}),
       });
+      if (appliedCoupon) {
+        try {
+          await redeemCoupon.mutateAsync({ code: appliedCoupon.code, bookingId: newBooking.id });
+        } catch { /* booking still succeeded — coupon error is non-fatal */ }
+      }
       setSuccess(true);
     } catch (e: unknown) {
       const msg = (e as { message?: string; response?: { data?: { message?: string } } })?.response?.data?.message
@@ -710,9 +873,10 @@ export function BookServicePage() {
           {activeStep === 1 && (
             <Step2Address
               selected={address}
-              onSelect={setAddress}
+              onSelect={handleAddressSelect}
               locationLink={locationLink}
               onLocationLink={setLocationLink}
+              onCoverageChange={setCoverageOk}
             />
           )}
           {activeStep === 2 && (
@@ -726,6 +890,7 @@ export function BookServicePage() {
               selection={selection} address={address}
               date={date} time={time} notes={notes}
               locationLink={locationLink} priority={priority}
+              onCouponApplied={setAppliedCoupon}
             />
           )}
         </CardContent>
@@ -760,10 +925,10 @@ export function BookServicePage() {
             variant="contained"
             sx={{ bgcolor: '#1E8E5A' }}
             onClick={handleConfirm}
-            disabled={createBooking.isPending || !canNext()}
-            startIcon={createBooking.isPending ? <CircularProgress size={16} color="inherit" /> : undefined}
+            disabled={createBooking.isPending || redeemCoupon.isPending || !canNext()}
+            startIcon={(createBooking.isPending || redeemCoupon.isPending) ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
-            {createBooking.isPending ? 'Confirming…' : 'Confirm Booking'}
+            {createBooking.isPending ? 'Confirming…' : redeemCoupon.isPending ? 'Applying coupon…' : 'Confirm Booking'}
           </Button>
         )}
       </Stack>

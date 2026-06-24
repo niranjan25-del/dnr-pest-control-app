@@ -48,7 +48,7 @@ export class AnalyticsService {
       SELECT date_trunc(${Prisma.raw(`'${unit}'`)}, created_at) AS bucket,
              SUM(amount - refunded_amount)::float AS net
       FROM payments
-      WHERE status IN (${Prisma.join(REVENUE_STATUSES)}) AND created_at >= ${from} AND created_at <= ${to}
+      WHERE status::text IN (${Prisma.join(REVENUE_STATUSES)}) AND created_at >= ${from} AND created_at <= ${to}
       GROUP BY bucket ORDER BY bucket`);
     return rows.map((r) => ({ bucket: r.bucket.toISOString().slice(0, 10), value: Number(r.net) }));
   }

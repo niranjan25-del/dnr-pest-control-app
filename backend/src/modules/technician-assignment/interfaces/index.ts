@@ -16,6 +16,7 @@ export interface TechnicianCandidate {
   full_name: string;
   score: number;
   hard_eligible: boolean;
+  is_available: boolean;
   serves_area: boolean;
   has_skill: boolean;
   active_jobs: number;

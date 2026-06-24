@@ -24,6 +24,7 @@ import { TechniciansListPage } from '@/features/technicians/TechniciansListPage'
 import { TechnicianDetailPage } from '@/features/technicians/TechnicianDetailPage';
 import { CatalogPage } from '@/features/services/CatalogPage';
 import { PricingPage } from '@/features/pricing/PricingPage';
+import { PlansPage } from '@/features/plans/PlansPage';
 import { SubscriptionsListPage } from '@/features/subscriptions/SubscriptionsListPage';
 import { CouponsListPage } from '@/features/coupons/CouponsListPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
@@ -172,6 +173,12 @@ export const router = createBrowserRouter([
               {
                 element: <PermissionRoute permission={Permission.ManagePricing} />,
                 children: [{ path: paths.pricing, element: <PricingPage /> }],
+              },
+
+              // Subscription plans management
+              {
+                element: <PermissionRoute permission={Permission.ManagePricing} />,
+                children: [{ path: paths.plans, element: <PlansPage /> }],
               },
 
               // Subscriptions

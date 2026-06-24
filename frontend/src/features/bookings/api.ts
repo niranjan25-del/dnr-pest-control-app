@@ -32,11 +32,8 @@ export const bookingsApi = {
     const { data } = await apiClient.get<{ data?: StatusHistoryEntry[] } | StatusHistoryEntry[]>(`/bookings/${id}/status-history`);
     return (data as { data?: StatusHistoryEntry[] }).data ?? (data as StatusHistoryEntry[]) ?? [];
   },
-  async reschedule(id: string, windowStartIso: string, windowEndIso: string): Promise<void> {
-    await apiClient.patch(`/bookings/${id}/reschedule`, {
-      scheduled_window_start: windowStartIso,
-      scheduled_window_end: windowEndIso,
-    });
+  async reschedule(id: string, scheduledStart: string): Promise<void> {
+    await apiClient.patch(`/bookings/${id}/reschedule`, { scheduledStart });
   },
   async cancel(id: string, reason?: string): Promise<void> {
     await apiClient.post(`/bookings/${id}/cancel`, reason ? { reason } : {});

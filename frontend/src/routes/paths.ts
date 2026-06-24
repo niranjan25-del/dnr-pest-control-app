@@ -14,6 +14,7 @@ export const paths = {
   dispatch: '/dispatch',
   catalog: '/catalog',
   pricing: '/pricing',
+  plans: '/plans',
   subscriptions: '/subscriptions',
   payments: '/payments',
   coupons: '/coupons',

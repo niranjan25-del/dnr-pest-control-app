@@ -12,6 +12,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import HomeRepairServiceIcon from '@mui/icons-material/HomeRepairService';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PaymentIcon from '@mui/icons-material/Payment';
 import PersonIcon from '@mui/icons-material/Person';
@@ -27,8 +28,9 @@ import {
   useMyBooking, useCancelMyBooking, useRescheduleMyBooking,
   useSubmitReview, useWarrantyForBooking,
   useCreateCashfreeOrder, useConfirmCashfreePayment,
+  useValidateCoupon, useRedeemCoupon,
 } from './hooks';
-import type { CashfreeOrderResult, CustomerBooking } from './types';
+import type { CashfreeOrderResult, CouponPreview, CustomerBooking } from './types';
 
 const BRAND = '#1565C0';
 
@@ -110,8 +112,7 @@ const PAYABLE        = new Set(['PENDING', 'CONFIRMED', 'COMPLETED']);
 const NON_TERMINAL   = new Set(['PENDING', 'CONFIRMED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED']);
 
 const PRIORITY_COLOR: Record<string, string> = {
-  HIGH:      '#FF9800',
-  EMERGENCY: '#F44336',
+  HIGH: '#FF9800',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -466,8 +467,11 @@ function PayNowButton({ bookingId, amount, currency }: {
         const payment = await confirm.mutateAsync(order.order_id);
         if (payment.status === 'SUCCEEDED') {
           setPaid(true);
+        } else if (payment.status === 'FAILED') {
+          setErr('Payment failed. Please try again.');
         } else {
-          setErr('Payment is being processed. Your booking will update shortly.');
+          // Still processing — backend will reconcile via webhook or next page load.
+          setErr('Payment is being verified. Please refresh in a moment if your status does not update.');
         }
       } else if (result.error) {
         setErr(result.error.message ?? 'Payment failed or was cancelled.');
@@ -573,10 +577,111 @@ function RescheduleDialog({ open, onClose, bookingId }: {
   );
 }
 
+// ── CouponSection ─────────────────────────────────────────────────────────────
+
+function CouponSection({ bookingId, currency }: { bookingId: string; currency: string }) {
+  const [couponInput,   setCouponInput]   = useState('');
+  const [preview,       setPreview]       = useState<CouponPreview | null>(null);
+  const [couponError,   setCouponError]   = useState('');
+  const validateCoupon = useValidateCoupon();
+  const redeemCoupon   = useRedeemCoupon();
+
+  const handleValidate = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponError('');
+    try {
+      const result = await validateCoupon.mutateAsync({ code, bookingId });
+      if (result.valid) {
+        setPreview(result);
+      } else {
+        setPreview(null);
+        setCouponError(result.reason ?? 'Invalid or expired coupon code.');
+      }
+    } catch {
+      setCouponError('Could not validate coupon. Please try again.');
+    }
+  };
+
+  const handleRedeem = async () => {
+    if (!preview) return;
+    try {
+      await redeemCoupon.mutateAsync({ code: couponInput.trim().toUpperCase(), bookingId });
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? (e as Error).message ?? 'Could not apply coupon.';
+      setCouponError(Array.isArray(msg) ? msg.join('. ') : String(msg));
+      setPreview(null);
+    }
+  };
+
+  return (
+    <Card variant="outlined" sx={{ mb: 3, borderStyle: 'dashed', borderColor: 'primary.light' }}>
+      <CardContent>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+          <LocalOfferIcon sx={{ color: '#1565C0', fontSize: 20 }} />
+          <Typography variant="subtitle2" fontWeight={700}>Have a coupon code?</Typography>
+        </Stack>
+
+        {!preview ? (
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <TextField
+              size="small"
+              placeholder="E.g. SAVE20"
+              value={couponInput}
+              onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleValidate(); } }}
+              error={Boolean(couponError)}
+              helperText={couponError || ' '}
+              sx={{ flex: 1 }}
+              inputProps={{ style: { textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: 1 } }}
+            />
+            <Button
+              variant="outlined"
+              onClick={() => void handleValidate()}
+              disabled={!couponInput.trim() || validateCoupon.isPending}
+              sx={{ whiteSpace: 'nowrap', mt: 0.25 }}
+            >
+              {validateCoupon.isPending ? <CircularProgress size={18} /> : 'Check'}
+            </Button>
+          </Stack>
+        ) : (
+          <Box>
+            <Alert
+              severity="success"
+              sx={{ mb: 1.5 }}
+              action={
+                <Button size="small" color="inherit" onClick={() => { setPreview(null); setCouponError(''); }}>
+                  Change
+                </Button>
+              }
+            >
+              <b>{preview.code}</b> saves you {formatMoney(preview.discount_amount, currency)}
+              {' '}— you pay {formatMoney(preview.final_amount, currency)}
+            </Alert>
+            {couponError && <Alert severity="error" sx={{ mb: 1.5 }}>{couponError}</Alert>}
+            <Stack direction="row" justifyContent="flex-end">
+              <Button
+                variant="contained"
+                sx={{ bgcolor: '#1E8E5A' }}
+                onClick={() => void handleRedeem()}
+                disabled={redeemCoupon.isPending}
+                startIcon={redeemCoupon.isPending ? <CircularProgress size={14} color="inherit" /> : undefined}
+              >
+                {redeemCoupon.isPending ? 'Applying…' : 'Apply discount'}
+              </Button>
+            </Stack>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── ReviewDialog ──────────────────────────────────────────────────────────────
 
-function ReviewDialog({ open, onClose, bookingId }: {
-  open: boolean; onClose: () => void; bookingId: string;
+function ReviewDialog({ open, onClose, bookingId, onReviewed }: {
+  open: boolean; onClose: () => void; bookingId: string; onReviewed: () => void;
 }) {
   const submitReview = useSubmitReview();
   const [rating,  setRating]  = useState<number | null>(null);
@@ -590,6 +695,7 @@ function ReviewDialog({ open, onClose, bookingId }: {
     try {
       await submitReview.mutateAsync({ bookingId, rating, comment: comment || undefined });
       setDone(true);
+      onReviewed();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
         ?? (e as Error).message ?? 'Could not submit review.';
@@ -724,6 +830,7 @@ export function CustomerBookingDetailPage() {
   const [cancelError,   setCancelError]   = useState('');
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [reviewOpen,    setReviewOpen]    = useState(false);
+  const [hasReviewed,   setHasReviewed]   = useState(false);
 
   const handleCancel = async (reason: string) => {
     setCancelError('');
@@ -855,11 +962,31 @@ export function CustomerBookingDetailPage() {
               </Box>
             }
           />
-          <InfoRow
-            icon={<CheckCircleIcon fontSize="small" />}
-            label="Amount"
-            value={formatMoney(booking.price, booking.currency)}
-          />
+          {(booking.discount_amount ?? 0) > 0 ? (
+            <InfoRow
+              icon={<CheckCircleIcon fontSize="small" />}
+              label="Amount"
+              value={
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Base: {formatMoney(booking.price, booking.currency)}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#2E7D32', fontWeight: 600 }}>
+                    Coupon: -{formatMoney(booking.discount_amount!, booking.currency)}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={700}>
+                    Subtotal: {formatMoney(Number(booking.price) - Number(booking.discount_amount), booking.currency)} + taxes
+                  </Typography>
+                </Box>
+              }
+            />
+          ) : (
+            <InfoRow
+              icon={<CheckCircleIcon fontSize="small" />}
+              label="Amount"
+              value={formatMoney(booking.price, booking.currency)}
+            />
+          )}
           {booking.notes && (
             <InfoRow
               icon={<ScheduleIcon fontSize="small" />}
@@ -886,6 +1013,11 @@ export function CustomerBookingDetailPage() {
         </Card>
       )}
 
+      {/* Coupon — only for PENDING bookings that don't have one yet */}
+      {booking.status === 'PENDING' && Number(booking.discount_amount ?? 0) === 0 && (
+        <CouponSection bookingId={booking.id} currency={booking.currency} />
+      )}
+
       <Divider sx={{ mb: 2 }} />
 
       {/* Actions */}
@@ -910,8 +1042,16 @@ export function CustomerBookingDetailPage() {
           </Button>
         )}
 
-        {/* Leave review */}
-        {isCompleted && (
+        {/* Leave review / reviewed */}
+        {isCompleted && (hasReviewed || booking.has_review) && (
+          <Chip
+            icon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
+            label="Review submitted"
+            sx={{ color: '#2E7D32', borderColor: '#2E7D32', bgcolor: '#E8F5E9', fontWeight: 600 }}
+            variant="outlined"
+          />
+        )}
+        {isCompleted && !hasReviewed && !booking.has_review && (
           <Button
             variant="outlined"
             startIcon={<StarIcon />}
@@ -970,6 +1110,7 @@ export function CustomerBookingDetailPage() {
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
         bookingId={booking.id}
+        onReviewed={() => setHasReviewed(true)}
       />
     </Box>
   );

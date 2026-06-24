@@ -51,7 +51,7 @@ export function useBookingMutations(id: string) {
   });
   const cancel = useMutation({ mutationFn: (reason?: string) => bookingsApi.cancel(id, reason), onSuccess: invalidate });
   const reschedule = useMutation({
-    mutationFn: (vars: { start: string; end: string }) => bookingsApi.reschedule(id, vars.start, vars.end),
+    mutationFn: (vars: { start: string }) => bookingsApi.reschedule(id, vars.start),
     onSuccess: invalidate,
   });
 

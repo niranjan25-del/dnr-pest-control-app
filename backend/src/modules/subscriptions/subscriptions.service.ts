@@ -208,7 +208,7 @@ export class SubscriptionsService {
     }
     if (actor.role === UserRole.TECHNICIAN) {
       const p = await this.prisma.technicianProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
-      return { bookings: { some: { assignments: { some: { technicianId: p?.id ?? '0' } } } } };
+      return { bookings: { some: { assignments: { some: { technicianId: p?.id ?? '00000000-0000-0000-0000-000000000000' } } } } };
     }
     return { id: '00000000-0000-0000-0000-000000000000' };
   }

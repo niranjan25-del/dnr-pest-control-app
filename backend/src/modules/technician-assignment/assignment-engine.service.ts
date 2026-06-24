@@ -60,16 +60,11 @@ export class AssignmentEngineService {
     const postal = booking.address.postalCode;
     const lat = booking.address.latitude ? Number(booking.address.latitude) : null;
     const lng = booking.address.longitude ? Number(booking.address.longitude) : null;
-    // Normalize slugs (hyphen-separated) to space-separated so they match stored skill names.
-    const normalize = (s: string) => s.toLowerCase().replace(/-/g, ' ');
-    const skillTokens = [booking.service?.slug, booking.service?.category?.slug, booking.service?.pestCategory?.slug]
-      .filter(Boolean)
-      .map((s) => normalize(s!));
 
     const techs = await this.prisma.technicianProfile.findMany({
-      where: { deletedAt: null, isAvailable: true, ...(excludeTechnicianId ? { id: { not: excludeTechnicianId } } : {}) },
+      where: { deletedAt: null, ...(excludeTechnicianId ? { id: { not: excludeTechnicianId } } : {}) },
       select: {
-        id: true, skills: true,
+        id: true, isAvailable: true,
         user: { select: { fullName: true } },
         serviceAreas: { select: { postalCodes: true } },
         locations: { orderBy: { recordedAt: 'desc' }, take: 1, select: { latitude: true, longitude: true } },
@@ -86,13 +81,9 @@ export class AssignmentEngineService {
 
       // Soft scoring.
       const servesArea = t.serviceAreas.some((a) => a.postalCodes.includes(postal));
-      const techSkills = t.skills.map((s) => normalize(s));
-      const hasSkill = techSkills.length === 0
-        ? true // generalist — no skills listed means they handle anything
-        : skillTokens.some((tok) => techSkills.some((s) => s.includes(tok) || tok.includes(s)));
 
       const areaScore = servesArea ? SCORE_WEIGHTS.SERVICE_AREA : 0;
-      const skillScore = techSkills.length === 0 ? SCORE_WEIGHTS.SKILL * 0.5 : hasSkill ? SCORE_WEIGHTS.SKILL : 0;
+      const skillScore = SCORE_WEIGHTS.SKILL; // all technicians handle all job types
       const workloadScore = SCORE_WEIGHTS.WORKLOAD * (1 - Math.min(dailyActive, CAPACITY.MAX_DAILY_JOBS) / CAPACITY.MAX_DAILY_JOBS);
 
       const loc = t.locations[0];
@@ -111,16 +102,15 @@ export class AssignmentEngineService {
         name: t.user.fullName,
         full_name: t.user.fullName,
         score,
-        // Candidates in this list have all passed the actual hard filters (no conflict, under capacity).
-        // hard_eligible reflects soft match quality, not assignability.
         hard_eligible: true,
+        is_available: t.isAvailable,
         serves_area: servesArea,
-        has_skill: hasSkill,
+        has_skill: true,
         active_jobs: dailyActive,
         distance_km: distanceKm !== null ? Number(distanceKm.toFixed(2)) : null,
         breakdown: { serviceArea: areaScore, skill: Math.round(skillScore), workload: Math.round(workloadScore), distance: Math.round(distanceScore) },
         distanceKm: distanceKm !== null ? Number(distanceKm.toFixed(2)) : null,
-        dailyActiveJobs: dailyActive, servesArea, hasSkill,
+        dailyActiveJobs: dailyActive, servesArea, hasSkill: true,
       });
     }
 

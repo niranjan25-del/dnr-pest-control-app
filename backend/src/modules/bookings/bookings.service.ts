@@ -17,6 +17,7 @@ import { paginate } from 'src/common/utils/pagination.util';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
 import { AvailabilityService } from './availability.service';
 import { BookingStatusService } from './booking-status.service';
+import { ServiceAreasService } from '../service-areas/service-areas.service';
 import {
   BookingFilterDto, CancelBookingDto, CreateBookingDto, RescheduleBookingDto, UpdateBookingDto,
   UpdateBookingStatusDto,
@@ -47,6 +48,7 @@ const BOOKING_DETAIL_INCLUDE = {
     orderBy: { createdAt: 'asc' as const },
     select: { id: true, previousStatus: true, newStatus: true, note: true, createdAt: true },
   },
+  review: { select: { id: true, deletedAt: true } },
 } satisfies Prisma.BookingInclude;
 
 type BookingRow = Prisma.BookingGetPayload<{ include: typeof BOOKING_INCLUDE }>;
@@ -60,6 +62,7 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
     private readonly status: BookingStatusService,
+    private readonly serviceAreas: ServiceAreasService,
   ) {}
 
   // ---------- Create ----------
@@ -72,9 +75,20 @@ export class BookingsService {
 
     // Validate address ownership.
     const address = await this.prisma.address.findFirst({
-      where: { id: dto.addressId, customerId, deletedAt: null }, select: { id: true },
+      where: { id: dto.addressId, customerId, deletedAt: null }, select: { id: true, postalCode: true },
     });
     if (!address) throw new BadRequestException({ code: 'ADDRESS_NOT_FOUND', message: 'Address not found for this customer' });
+
+    // Enforce service area coverage for customers (admins may override).
+    if (actor.role !== UserRole.ADMIN && address.postalCode) {
+      const coverage = await this.serviceAreas.checkCoverage(address.postalCode);
+      if (!coverage.covered) {
+        throw new BadRequestException({
+          code: 'AREA_NOT_COVERED',
+          message: `We don't currently service postal code ${address.postalCode}. Please contact us or use a different address.`,
+        });
+      }
+    }
 
     // Resolve price + duration from the chosen service/package (snapshotted onto the booking).
     const { price, durationMin } = await this.resolvePricing(dto);
@@ -331,7 +345,9 @@ export class BookingsService {
     return profile.id;
   }
 
-  private async resolvePricing(dto: CreateBookingDto): Promise<{ price: Prisma.Decimal | number; durationMin: number }> {
+  private async resolvePricing(dto: CreateBookingDto): Promise<{ price: number; durationMin: number }> {
+    const prioritySurcharge = dto.priority === BookingPriority.HIGH ? 1.05 : 1;
+
     if (dto.packageId) {
       const pkg = await this.prisma.servicePackage.findFirst({
         where: { id: dto.packageId, deletedAt: null, isActive: true },
@@ -339,14 +355,17 @@ export class BookingsService {
       });
       if (!pkg) throw new BadRequestException({ code: 'SERVICE_UNAVAILABLE', message: 'Package is unavailable' });
       const durationMin = pkg.packageServices.reduce((s, ps) => s + ps.service.estimatedDurationMin * ps.quantity, 0) || 60;
-      return { price: pkg.price, durationMin };
+      return { price: Math.round(Number(pkg.price) * prioritySurcharge * 100) / 100, durationMin };
     }
     const service = await this.prisma.service.findFirst({
       where: { id: dto.serviceId!, deletedAt: null, isActive: true },
       select: { basePrice: true, estimatedDurationMin: true },
     });
     if (!service) throw new BadRequestException({ code: 'SERVICE_UNAVAILABLE', message: 'Service is unavailable' });
-    return { price: service.basePrice, durationMin: service.estimatedDurationMin };
+    return {
+      price: Math.round(Number(service.basePrice) * prioritySurcharge * 100) / 100,
+      durationMin: service.estimatedDurationMin,
+    };
   }
 
   private toResponse(b: BookingRow | BookingDetailRow) {
@@ -408,6 +427,7 @@ export class BookingsService {
         note: h.note,
         created_at: h.createdAt,
       })),
+      has_review: Boolean((b as BookingDetailRow).review && !(b as BookingDetailRow).review?.deletedAt),
       priority: b.priority,
       created_at: b.createdAt,
       updated_at: b.updatedAt,

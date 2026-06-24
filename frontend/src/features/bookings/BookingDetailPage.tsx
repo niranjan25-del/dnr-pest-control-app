@@ -127,7 +127,6 @@ export function BookingDetailPage() {
   const [dialog, setDialog] = useState<'assign' | 'reassign' | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
   const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
 
   if (isLoading) return <LoadingScreen />;
   if (error || !booking) return <ErrorState error={error} onRetry={refetch} />;
@@ -141,8 +140,8 @@ export function BookingDetailPage() {
   };
 
   const onReschedule = async () => {
-    if (!start || !end) return;
-    await reschedule.mutateAsync({ start: new Date(start).toISOString(), end: new Date(end).toISOString() });
+    if (!start) return;
+    await reschedule.mutateAsync({ start: new Date(start).toISOString() });
     setRescheduling(false);
   };
 
@@ -195,9 +194,8 @@ export function BookingDetailPage() {
                 <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>New window</Typography>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-                    <TextField type="datetime-local" label="Start" InputLabelProps={{ shrink: true }} value={start} onChange={(e) => setStart(e.target.value)} />
-                    <TextField type="datetime-local" label="End" InputLabelProps={{ shrink: true }} value={end} onChange={(e) => setEnd(e.target.value)} />
-                    <Button variant="contained" onClick={onReschedule} disabled={!start || !end || reschedule.isPending}>Save</Button>
+                    <TextField type="datetime-local" label="New start time" InputLabelProps={{ shrink: true }} value={start} onChange={(e) => setStart(e.target.value)} />
+                    <Button variant="contained" onClick={onReschedule} disabled={!start || reschedule.isPending}>Save</Button>
                   </Stack>
                 </Box>
               )}

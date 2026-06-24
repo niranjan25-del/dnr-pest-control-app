@@ -51,6 +51,8 @@ export class TechnicianAvailabilityService {
         status: { in: ACTIVE_ASSIGNMENT_STATUSES },
         booking: {
           deletedAt: null,
+          // Only active bookings block the slot; completed/cancelled ones are done
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
           ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
           // overlap: existing.start < new.end AND existing.end > new.start
           scheduledWindowStart: { lt: window.end },

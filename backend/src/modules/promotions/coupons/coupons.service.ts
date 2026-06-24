@@ -174,6 +174,10 @@ export class CouponsService {
       // / Stripe coupon integration) — flagged.
       return { base: Number(sub.plan.price), subscriptionId: sub.id };
     }
+    // Pre-booking preview: caller passes the known price directly.
+    if (dto.amount !== undefined && dto.amount >= 0) {
+      return { base: dto.amount };
+    }
     return { base: 0 };
   }
 

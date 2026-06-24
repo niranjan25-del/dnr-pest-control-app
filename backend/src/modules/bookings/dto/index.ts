@@ -60,8 +60,8 @@ export class RescheduleBookingDto {
 }
 
 export class CancelBookingDto {
-  @IsString() @IsNotEmpty({ message: 'A cancellation reason is required' }) @MaxLength(500)
-  reason!: string;
+  @IsOptional() @IsString() @MaxLength(500)
+  reason?: string;
 }
 
 export class UpdateBookingStatusDto {

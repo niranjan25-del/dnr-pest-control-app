@@ -2,6 +2,7 @@ import { apiClient } from '@/services/apiClient';
 import type { QueryParams } from '@/services/createResourceService';
 import type { Paginated } from '@/types';
 import type {
+  CouponPreview,
   CustomerAddress, CustomerBooking, CashfreeOrderResult, CustomerInvoice, CustomerReview,
   CustomerSelfProfile, CustomerServiceReport, CustomerSubscription, CustomerWarranty,
   PackageOption, ServiceOption,
@@ -78,6 +79,12 @@ export const customerPortalApi = {
     return data;
   },
 
+  // ── Service Areas ──────────────────────────────────────────────────────────
+  async checkCoverage(postalCode: string): Promise<{ postal_code: string; covered: boolean; areas: { id: string; name: string }[] }> {
+    const { data } = await apiClient.get('/service-areas/coverage', { params: { postalCode } });
+    return data;
+  },
+
   // ── Invoices ──────────────────────────────────────────────────────────────
   async listInvoices(params: QueryParams): Promise<Paginated<CustomerInvoice>> {
     const { data } = await apiClient.get<Paginated<CustomerInvoice>>('/invoices/customer/history', { params });
@@ -108,6 +115,17 @@ export const customerPortalApi = {
 
   async getServiceReport(id: string): Promise<CustomerServiceReport> {
     const { data } = await apiClient.get<CustomerServiceReport>(`/service-reports/${id}`);
+    return data;
+  },
+
+  // ── Coupons ───────────────────────────────────────────────────────────────
+  async validateCoupon(code: string, opts?: { bookingId?: string; amount?: number }): Promise<CouponPreview> {
+    const { data } = await apiClient.post<CouponPreview>('/coupons/validate', { code, ...opts });
+    return data;
+  },
+
+  async redeemCoupon(code: string, bookingId: string): Promise<{ code: string; discount_amount: number; final_amount: number }> {
+    const { data } = await apiClient.post<{ code: string; discount_amount: number; final_amount: number }>('/coupons/redeem', { code, bookingId });
     return data;
   },
 

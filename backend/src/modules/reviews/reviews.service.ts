@@ -2,7 +2,7 @@
 // Review list + moderation. Admins see all; filtering by status. Status transitions:
 // PENDING → PUBLISHED (visible to users) or HIDDEN (suppressed). FLAGGED marks for follow-up.
 
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ReviewStatus } from '@prisma/client';
 import { PrismaService } from 'src/database/prisma.service';
 import { paginate } from 'src/common/utils/pagination.util';
@@ -74,9 +74,12 @@ export class ReviewsService {
 
     const booking = await this.prisma.booking.findFirst({
       where: { id: dto.booking_id, customerId: cp.id, deletedAt: null },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
+    if (booking.status !== 'COMPLETED') {
+      throw new BadRequestException({ code: 'REVIEW_NOT_ALLOWED', message: 'Reviews can only be submitted for completed bookings' });
+    }
 
     const existing = await this.prisma.review.findFirst({ where: { bookingId: dto.booking_id } });
     if (existing) throw new ConflictException({ code: 'REVIEW_EXISTS', message: 'A review already exists for this booking' });

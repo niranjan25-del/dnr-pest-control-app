@@ -20,6 +20,7 @@ import CampaignIcon from '@mui/icons-material/Campaign';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import HistoryIcon from '@mui/icons-material/History';
 import SellIcon from '@mui/icons-material/Sell';
+import LayersIcon from '@mui/icons-material/Layers';
 import SubscriptionsIcon from '@mui/icons-material/Subscriptions';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { paths } from '@/routes/paths';
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Dispatch', to: paths.dispatch, icon: <RouteIcon />, permission: Permission.AssignTechnician, ready: true },
   { label: 'Catalog', to: paths.catalog, icon: <InventoryIcon />, permission: Permission.ManageCatalog, ready: true },
   { label: 'Pricing', to: paths.pricing, icon: <SellIcon />, permission: Permission.ManagePricing, ready: true },
+  { label: 'Plans', to: paths.plans, icon: <LayersIcon />, permission: Permission.ManagePricing, ready: true },
   { label: 'Subscriptions', to: paths.subscriptions, icon: <SubscriptionsIcon />, permission: Permission.ManageCustomers, ready: true },
   { label: 'Payments', to: paths.payments, icon: <PaymentsIcon />, permission: Permission.ViewPayments, ready: true },
   { label: 'Coupons', to: paths.coupons, icon: <LocalOfferIcon />, permission: Permission.ManageCoupons, ready: true },
