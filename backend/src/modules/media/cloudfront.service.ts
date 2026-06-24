@@ -9,9 +9,9 @@
 // here and should be added to env validation. Without them, signing is disabled (S3 presign is
 // used instead). The CloudFront distribution must front the private bucket via OAC.
 
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { getSignedUrl } from '@aws-sdk/cloudfront-signer';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { getSignedUrl } from "@aws-sdk/cloudfront-signer";
 
 @Injectable()
 export class CloudFrontService {
@@ -21,10 +21,10 @@ export class CloudFrontService {
   private readonly privateKey?: string;
 
   constructor(private readonly config: ConfigService) {
-    this.domain = this.config.get<string>('aws.cloudfrontDomain');
-    this.keyPairId = this.config.get<string>('CLOUDFRONT_KEY_PAIR_ID');
-    const pk = this.config.get<string>('CLOUDFRONT_PRIVATE_KEY');
-    this.privateKey = pk ? pk.replace(/\\n/g, '\n') : undefined;
+    this.domain = this.config.get<string>("aws.cloudfrontDomain");
+    this.keyPairId = this.config.get<string>("CLOUDFRONT_KEY_PAIR_ID");
+    const pk = this.config.get<string>("CLOUDFRONT_PRIVATE_KEY");
+    this.privateKey = pk ? pk.replace(/\\n/g, "\n") : undefined;
   }
 
   get signingEnabled(): boolean {
@@ -44,10 +44,14 @@ export class CloudFrontService {
         url: `https://${this.domain}/${key}`,
         keyPairId: this.keyPairId!,
         privateKey: this.privateKey!,
-        dateLessThan: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+        dateLessThan: new Date(
+          Date.now() + expiresInSeconds * 1000,
+        ).toISOString(),
       });
     } catch (err) {
-      this.logger.error(`CloudFront signing failed for ${key}: ${(err as Error).message}`);
+      this.logger.error(
+        `CloudFront signing failed for ${key}: ${(err as Error).message}`,
+      );
       return null;
     }
   }

@@ -1,6 +1,6 @@
 // src/modules/subscriptions/interfaces/index.ts
 
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus } from "@prisma/client";
 
 export interface SubscriptionResponse {
   id: string;

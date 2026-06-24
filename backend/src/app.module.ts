@@ -9,46 +9,51 @@
 //   • RequestContextMiddleware for request-id propagation
 //   • Feature modules (HealthModule now; auth/users/bookings/... attach here next)
 
-import { MiddlewareConsumer, Module, NestModule, ValidationPipe } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { LoggerModule } from 'nestjs-pino';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  ValidationPipe,
+} from "@nestjs/common";
+import { APP_FILTER, APP_GUARD, APP_PIPE } from "@nestjs/core";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { LoggerModule } from "nestjs-pino";
 
-import { configurations } from './config/configuration';
-import { validateEnv } from './config/env.validation';
-import { PrismaModule } from './database/prisma.module';
-import { FirebaseModule } from './infrastructure/firebase/firebase.module';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
-import { HealthModule } from './modules/health/health.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
-import { ProfilesModule } from './modules/profiles/profiles.module';
-import { ServicesModule } from './modules/services/services.module';
-import { PestCategoriesModule } from './modules/pest-categories/pest-categories.module';
-import { ServicePackagesModule } from './modules/service-packages/service-packages.module';
-import { BookingsModule } from './modules/bookings/bookings.module';
-import { TechnicianAssignmentModule } from './modules/technician-assignment/technician-assignment.module';
-import { ServiceAreasModule } from './modules/service-areas/service-areas.module';
-import { AddressesModule } from './modules/addresses/addresses.module';
-import { PaymentsModule } from './modules/payments/payments.module';
-import { InvoicesModule } from './modules/invoices/invoices.module';
-import { PlansModule } from './modules/plans/plans.module';
-import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
-import { CouponsModule } from './modules/promotions/coupons/coupons.module';
-import { PromotionsModule } from './modules/promotions/promotions/promotions.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
-import { ChatModule } from './modules/chat/chat.module';
-import { MediaModule } from './modules/media/media.module';
-import { LocationModule } from './modules/location/location.module';
-import { ServiceReportsModule } from './modules/service-reports/service-reports.module';
-import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { DispatchModule } from './modules/dispatch/dispatch.module';
-import { ReviewsModule } from './modules/reviews/reviews.module';
-import { AuditModule } from './modules/audit/audit.module';
-import { MobileModule } from './modules/mobile/mobile.module';
-import { WarrantiesModule } from './modules/warranties/warranties.module';
+import { configurations } from "./config/configuration";
+import { validateEnv } from "./config/env.validation";
+import { PrismaModule } from "./database/prisma.module";
+import { FirebaseModule } from "./infrastructure/firebase/firebase.module";
+import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
+import { RequestContextMiddleware } from "./common/middleware/request-context.middleware";
+import { HealthModule } from "./modules/health/health.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { UsersModule } from "./modules/users/users.module";
+import { ProfilesModule } from "./modules/profiles/profiles.module";
+import { ServicesModule } from "./modules/services/services.module";
+import { PestCategoriesModule } from "./modules/pest-categories/pest-categories.module";
+import { ServicePackagesModule } from "./modules/service-packages/service-packages.module";
+import { BookingsModule } from "./modules/bookings/bookings.module";
+import { TechnicianAssignmentModule } from "./modules/technician-assignment/technician-assignment.module";
+import { ServiceAreasModule } from "./modules/service-areas/service-areas.module";
+import { AddressesModule } from "./modules/addresses/addresses.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
+import { InvoicesModule } from "./modules/invoices/invoices.module";
+import { PlansModule } from "./modules/plans/plans.module";
+import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.module";
+import { CouponsModule } from "./modules/promotions/coupons/coupons.module";
+import { PromotionsModule } from "./modules/promotions/promotions/promotions.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { ChatModule } from "./modules/chat/chat.module";
+import { MediaModule } from "./modules/media/media.module";
+import { LocationModule } from "./modules/location/location.module";
+import { ServiceReportsModule } from "./modules/service-reports/service-reports.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { DispatchModule } from "./modules/dispatch/dispatch.module";
+import { ReviewsModule } from "./modules/reviews/reviews.module";
+import { AuditModule } from "./modules/audit/audit.module";
+import { MobileModule } from "./modules/mobile/mobile.module";
+import { WarrantiesModule } from "./modules/warranties/warranties.module";
 
 @Module({
   imports: [
@@ -63,16 +68,23 @@ import { WarrantiesModule } from './modules/warranties/warranties.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         pinoHttp: {
-          level: config.get<string>('app.logLevel') ?? 'info',
+          level: config.get<string>("app.logLevel") ?? "info",
           transport:
-            config.get<string>('app.env') === 'development'
-              ? { target: 'pino-pretty', options: { singleLine: true } }
+            config.get<string>("app.env") === "development"
+              ? { target: "pino-pretty", options: { singleLine: true } }
               : undefined,
           // Correlate logs with the error envelope's request_id.
-          customProps: (req) => ({ requestId: (req as { requestId?: string }).requestId }),
+          customProps: (req) => ({
+            requestId: (req as { requestId?: string }).requestId,
+          }),
           // Never log secrets/PII.
           redact: {
-            paths: ['req.headers.authorization', 'req.headers.cookie', 'req.body.password', 'req.body.token'],
+            paths: [
+              "req.headers.authorization",
+              "req.headers.cookie",
+              "req.body.password",
+              "req.body.token",
+            ],
             remove: true,
           },
           autoLogging: true,
@@ -84,8 +96,8 @@ import { WarrantiesModule } from './modules/warranties/warranties.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => [
         {
-          ttl: (config.get<number>('app.throttleTtlSeconds') ?? 60) * 1000,
-          limit: config.get<number>('app.throttleLimit') ?? 120,
+          ttl: (config.get<number>("app.throttleTtlSeconds") ?? 60) * 1000,
+          limit: config.get<number>("app.throttleLimit") ?? 120,
         },
       ],
     }),
@@ -142,6 +154,6 @@ import { WarrantiesModule } from './modules/warranties/warranties.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestContextMiddleware).forRoutes('*');
+    consumer.apply(RequestContextMiddleware).forRoutes("*");
   }
 }

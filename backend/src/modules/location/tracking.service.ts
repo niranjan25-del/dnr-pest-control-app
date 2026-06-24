@@ -7,9 +7,9 @@
 // technician X". The durable record is TechnicianLocation (RouteService); this is the live
 // view only.
 
-import { Injectable } from '@nestjs/common';
-import { TechnicianTrackingStatus } from './enums';
-import { LivePosition } from './interfaces';
+import { Injectable } from "@nestjs/common";
+import { TechnicianTrackingStatus } from "./enums";
+import { LivePosition } from "./interfaces";
 
 interface Session {
   status: TechnicianTrackingStatus;
@@ -25,8 +25,13 @@ export class TrackingService {
 
   start(technicianId: string, bookingId?: string): Session {
     const session: Session = {
-      status: bookingId ? TechnicianTrackingStatus.TRAVELING : TechnicianTrackingStatus.AVAILABLE,
-      position: null, bookingId: bookingId ?? null, arrivedNotified: false, updatedAt: new Date(),
+      status: bookingId
+        ? TechnicianTrackingStatus.TRAVELING
+        : TechnicianTrackingStatus.AVAILABLE,
+      position: null,
+      bookingId: bookingId ?? null,
+      arrivedNotified: false,
+      updatedAt: new Date(),
     };
     this.sessions.set(technicianId, session);
     return session;

@@ -4,11 +4,11 @@
 // present, else generates one), exposes it on the request + response header, so the error
 // envelope and structured logs can be correlated end-to-end.
 
-import { Injectable, NestMiddleware } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { NextFunction, Request, Response } from 'express';
+import { Injectable, NestMiddleware } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { NextFunction, Request, Response } from "express";
 
-declare module 'express' {
+declare module "express" {
   interface Request {
     requestId?: string;
   }
@@ -17,10 +17,10 @@ declare module 'express' {
 @Injectable()
 export class RequestContextMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const incoming = (req.headers['x-request-id'] as string) || undefined;
+    const incoming = (req.headers["x-request-id"] as string) || undefined;
     const id = incoming ?? randomUUID();
     req.requestId = id;
-    res.setHeader('X-Request-Id', id);
+    res.setHeader("X-Request-Id", id);
     next();
   }
 }

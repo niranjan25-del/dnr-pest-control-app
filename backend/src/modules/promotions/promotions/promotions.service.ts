@@ -4,10 +4,10 @@
 // in the schema). Customers see currently-valid coupons as "active promotions"; admins manage
 // campaigns by delegating to CouponsService. Campaign performance reuses the coupon analytics.
 
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/database/prisma.service';
-import { CouponsService } from '../coupons/coupons.service';
-import { CreatePromotionDto, UpdatePromotionDto } from './dto';
+import { Injectable, Logger } from "@nestjs/common";
+import { PrismaService } from "src/database/prisma.service";
+import { CouponsService } from "../coupons/coupons.service";
+import { CreatePromotionDto, UpdatePromotionDto } from "./dto";
 
 @Injectable()
 export class PromotionsService {
@@ -22,11 +22,18 @@ export class PromotionsService {
   async listActive() {
     const now = new Date();
     const rows = await this.prisma.coupon.findMany({
-      where: { deletedAt: null, isActive: true, validFrom: { lte: now }, validUntil: { gte: now } },
-      orderBy: { validUntil: 'asc' },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        validFrom: { lte: now },
+        validUntil: { gte: now },
+      },
+      orderBy: { validUntil: "asc" },
     });
     return rows
-      .filter((c) => c.maxRedemptions == null || c.timesRedeemed < c.maxRedemptions)
+      .filter(
+        (c) => c.maxRedemptions == null || c.timesRedeemed < c.maxRedemptions,
+      )
       .map((c) => ({
         id: c.id,
         code: c.code,
@@ -43,7 +50,9 @@ export class PromotionsService {
     return this.coupons.create(
       {
         code: dto.code,
-        description: dto.description ? `${dto.name} — ${dto.description}` : dto.name,
+        description: dto.description
+          ? `${dto.name} — ${dto.description}`
+          : dto.name,
         discountType: dto.discountType,
         discountValue: dto.discountValue,
         validFrom: dto.validFrom,
@@ -57,11 +66,18 @@ export class PromotionsService {
   }
 
   update(id: string, dto: UpdatePromotionDto, actorId: string) {
-    return this.coupons.update(id, {
-      description: dto.description, discountValue: dto.discountValue,
-      validFrom: dto.validFrom, validUntil: dto.validUntil,
-      maxRedemptions: dto.usageLimit, perUserLimit: dto.perUserLimit,
-    }, actorId);
+    return this.coupons.update(
+      id,
+      {
+        description: dto.description,
+        discountValue: dto.discountValue,
+        validFrom: dto.validFrom,
+        validUntil: dto.validUntil,
+        maxRedemptions: dto.usageLimit,
+        perUserLimit: dto.perUserLimit,
+      },
+      actorId,
+    );
   }
 
   setActive(id: string, isActive: boolean, actorId: string) {

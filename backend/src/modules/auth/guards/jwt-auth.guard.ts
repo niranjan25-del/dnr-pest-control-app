@@ -4,13 +4,17 @@
 // controller now or registered globally later without breaking open routes. Throws the
 // standard UnauthorizedException (mapped to the error envelope by the global filter).
 
-import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../constants/auth.constants';
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { AuthGuard } from "@nestjs/passport";
+import { IS_PUBLIC_KEY } from "../constants/auth.constants";
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class JwtAuthGuard extends AuthGuard("jwt") {
   constructor(private readonly reflector: Reflector) {
     super();
   }
@@ -26,7 +30,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   handleRequest<T>(err: unknown, user: T): T {
     if (err || !user) {
-      throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+      throw new UnauthorizedException({
+        code: "UNAUTHORIZED",
+        message: "Authentication required",
+      });
     }
     return user;
   }

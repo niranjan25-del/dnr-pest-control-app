@@ -13,13 +13,23 @@ export interface InvoicePdfData {
   issuedDate: Date;
   dueDate: Date | null;
   currency: string;
-  customer: { name: string; email: string; phone: string | null; address?: string };
+  customer: {
+    name: string;
+    email: string;
+    phone: string | null;
+    address?: string;
+  };
   lineItems: InvoiceLineItem[];
   subtotal: number;
   discount: number;
   tax: { label: string; rate: number; amount: number };
   total: number;
-  payment?: { method: string; status: string; amount: number; transactionId: string | null } | null;
+  payment?: {
+    method: string;
+    status: string;
+    amount: number;
+    transactionId: string | null;
+  } | null;
 }
 
 export interface DownloadLink {

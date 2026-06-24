@@ -9,7 +9,7 @@
 // adapter handles cross-instance event delivery; presence state should move to Redis keys with
 // TTL. There is also no last-seen column on User, so last-seen is not durable across restarts.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class PresenceService {
@@ -43,6 +43,8 @@ export class PresenceService {
   }
 
   lastSeen(userId: string): Date | null {
-    return this.isOnline(userId) ? new Date() : this.lastSeenAt.get(userId) ?? null;
+    return this.isOnline(userId)
+      ? new Date()
+      : (this.lastSeenAt.get(userId) ?? null);
   }
 }

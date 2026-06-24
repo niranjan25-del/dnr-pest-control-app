@@ -5,41 +5,66 @@
 // coordinates they're trusted.
 
 import {
-  IsBoolean, IsLatitude, IsLongitude, IsNotEmpty, IsOptional, IsString, MaxLength,
-} from 'class-validator';
+  IsBoolean,
+  IsLatitude,
+  IsLongitude,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
 
 export class CreateAddressDto {
-  @IsOptional() @IsString() @MaxLength(60)
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
   label?: string;
 
-  @IsString() @IsNotEmpty({ message: 'Address line 1 is required' }) @MaxLength(200)
+  @IsString()
+  @IsNotEmpty({ message: "Address line 1 is required" })
+  @MaxLength(200)
   line1!: string;
 
-  @IsOptional() @IsString() @MaxLength(200)
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   line2?: string;
 
-  @IsString() @IsNotEmpty({ message: 'City is required' }) @MaxLength(100)
+  @IsString()
+  @IsNotEmpty({ message: "City is required" })
+  @MaxLength(100)
   city!: string;
 
-  @IsString() @IsNotEmpty({ message: 'State is required' }) @MaxLength(100)
+  @IsString()
+  @IsNotEmpty({ message: "State is required" })
+  @MaxLength(100)
   state!: string;
 
-  @IsString() @IsNotEmpty({ message: 'Postal/ZIP code is required' }) @MaxLength(12)
+  @IsString()
+  @IsNotEmpty({ message: "Postal/ZIP code is required" })
+  @MaxLength(12)
   postalCode!: string;
 
-  @IsOptional() @IsString() @MaxLength(2)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
   country?: string; // ISO-2; defaults to 'IN'
 
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   accessNotes?: string;
 
-  @IsOptional() @IsLatitude({ message: 'latitude must be a valid coordinate' })
+  @IsOptional()
+  @IsLatitude({ message: "latitude must be a valid coordinate" })
   latitude?: number;
 
-  @IsOptional() @IsLongitude({ message: 'longitude must be a valid coordinate' })
+  @IsOptional()
+  @IsLongitude({ message: "longitude must be a valid coordinate" })
   longitude?: number;
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isDefault?: boolean;
 }
 

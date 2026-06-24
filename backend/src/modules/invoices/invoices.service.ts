@@ -7,31 +7,48 @@
 // history" since the schema has no dedicated history table.
 
 import {
-  BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException,
-} from '@nestjs/common';
-import { InvoiceStatus, MediaType, Prisma, UserRole } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { InvoiceNumberService } from './invoice-number.service';
-import { PdfGeneratorService } from './pdf-generator.service';
-import { StorageService } from './storage.service';
-import { TaxService } from './tax.service';
-import { CreateInvoiceDto, InvoiceFilterDto, RegenerateInvoiceDto } from './dto';
-import { InvoiceLineItem, InvoicePdfData } from './interfaces';
-import { VOIDABLE_STATUSES } from './enums';
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
+import { InvoiceStatus, MediaType, Prisma, UserRole } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { InvoiceNumberService } from "./invoice-number.service";
+import { PdfGeneratorService } from "./pdf-generator.service";
+import { StorageService } from "./storage.service";
+import { TaxService } from "./tax.service";
+import {
+  CreateInvoiceDto,
+  InvoiceFilterDto,
+  RegenerateInvoiceDto,
+} from "./dto";
+import { InvoiceLineItem, InvoicePdfData } from "./interfaces";
+import { VOIDABLE_STATUSES } from "./enums";
 
 const INVOICE_INCLUDE = {
-  customer: { select: { id: true, user: { select: { fullName: true, email: true, phone: true } } } },
-  booking: {
+  customer: {
     select: {
-      id: true, currency: true,
-      service: { select: { name: true } },
-      package: { select: { name: true } },
-      address: { select: { line1: true, city: true, state: true, postalCode: true } },
+      id: true,
+      user: { select: { fullName: true, email: true, phone: true } },
     },
   },
-  payments: { orderBy: { createdAt: 'desc' as const }, take: 1 },
+  booking: {
+    select: {
+      id: true,
+      currency: true,
+      service: { select: { name: true } },
+      package: { select: { name: true } },
+      address: {
+        select: { line1: true, city: true, state: true, postalCode: true },
+      },
+    },
+  },
+  payments: { orderBy: { createdAt: "desc" as const }, take: 1 },
 } satisfies Prisma.InvoiceInclude;
 
 type InvoiceRow = Prisma.InvoiceGetPayload<{ include: typeof INVOICE_INCLUDE }>;
@@ -54,57 +71,99 @@ export class InvoicesService {
       where: { id: dto.bookingId, deletedAt: null },
       include: { invoice: true, address: { select: { country: true } } },
     });
-    if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
+    if (!booking)
+      throw new NotFoundException({
+        code: "BOOKING_NOT_FOUND",
+        message: "Booking not found",
+      });
     if (booking.invoice && booking.invoice.status !== InvoiceStatus.VOID) {
-      throw new ConflictException({ code: 'INVOICE_EXISTS', message: 'An invoice already exists for this booking' });
+      throw new ConflictException({
+        code: "INVOICE_EXISTS",
+        message: "An invoice already exists for this booking",
+      });
     }
 
     const subtotal = Number(booking.price);
     const discount = Number(booking.discountAmount);
     const taxable = Math.max(0, subtotal - discount);
-    const tax = this.tax.calculate(taxable, booking.address?.country ?? 'IN');
+    const tax = this.tax.calculate(taxable, booking.address?.country ?? "IN");
     const total = taxable + tax.amount;
 
     const invoice = await this.numbers.createWithNumber((invoiceNumber) =>
       this.prisma.invoice.create({
         data: {
-          invoiceNumber, customerId: booking.customerId, bookingId: booking.id, status: InvoiceStatus.ISSUED,
-          subtotalAmount: subtotal, taxAmount: tax.amount, discountAmount: discount, totalAmount: total,
+          invoiceNumber,
+          customerId: booking.customerId,
+          bookingId: booking.id,
+          status: InvoiceStatus.ISSUED,
+          subtotalAmount: subtotal,
+          taxAmount: tax.amount,
+          discountAmount: discount,
+          totalAmount: total,
           currency: booking.currency,
         },
       }),
     );
-    await this.audit(actor.id, 'invoice.created', invoice.id, { invoiceNumber: invoice.invoiceNumber });
-    this.logger.log(`Invoice ${invoice.invoiceNumber} created for booking ${booking.id} by ${actor.id}`);
+    await this.audit(actor.id, "invoice.created", invoice.id, {
+      invoiceNumber: invoice.invoiceNumber,
+    });
+    this.logger.log(
+      `Invoice ${invoice.invoiceNumber} created for booking ${booking.id} by ${actor.id}`,
+    );
     return this.findById(invoice.id, actor);
   }
 
   // ---------------- Regenerate PDF (admin) ----------------
-  async regenerate(id: string, actor: AuthenticatedUser, dto: RegenerateInvoiceDto) {
+  async regenerate(
+    id: string,
+    actor: AuthenticatedUser,
+    dto: RegenerateInvoiceDto,
+  ) {
     let invoice = await this.requireInvoice(id);
     if (dto.recomputeTotals && invoice.bookingId) {
       invoice = await this.recomputeTotals(invoice);
     }
     const key = await this.buildAndStorePdf(invoice);
-    await this.audit(actor.id, 'invoice.regenerated', id, { key });
+    await this.audit(actor.id, "invoice.regenerated", id, { key });
     this.logger.log(`Invoice ${id} regenerated by ${actor.id}`);
     return this.findById(id, actor);
   }
 
   // ---------------- Void (admin) ----------------
   async void(id: string, actor: AuthenticatedUser, reason: string) {
-    const invoice = await this.prisma.invoice.findFirst({ where: { id, deletedAt: null } });
-    if (!invoice) throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!invoice)
+      throw new NotFoundException({
+        code: "INVOICE_NOT_FOUND",
+        message: "Invoice not found",
+      });
     if (invoice.status === InvoiceStatus.PAID) {
-      throw new BadRequestException({ code: 'VOID_FAILED', message: 'A paid invoice must be refunded before voiding' });
+      throw new BadRequestException({
+        code: "VOID_FAILED",
+        message: "A paid invoice must be refunded before voiding",
+      });
     }
     if (!VOIDABLE_STATUSES.includes(invoice.status)) {
-      throw new BadRequestException({ code: 'VOID_FAILED', message: `Cannot void a ${invoice.status} invoice` });
+      throw new BadRequestException({
+        code: "VOID_FAILED",
+        message: `Cannot void a ${invoice.status} invoice`,
+      });
     }
     await this.prisma.$transaction([
-      this.prisma.invoice.update({ where: { id }, data: { status: InvoiceStatus.VOID } }),
+      this.prisma.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.VOID },
+      }),
       this.prisma.auditLog.create({
-        data: { actorId: actor.id, action: 'invoice.voided', entityType: 'invoice', entityId: id, metadata: { reason } },
+        data: {
+          actorId: actor.id,
+          action: "invoice.voided",
+          entityType: "invoice",
+          entityId: id,
+          metadata: { reason },
+        },
       }),
     ]);
     this.logger.warn(`Invoice ${id} voided by ${actor.id}`);
@@ -114,9 +173,14 @@ export class InvoicesService {
   // ---------------- Reads ----------------
   async findById(id: string, actor: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id, deletedAt: null, ...(await this.scope(actor)) }, include: INVOICE_INCLUDE,
+      where: { id, deletedAt: null, ...(await this.scope(actor)) },
+      include: INVOICE_INCLUDE,
     });
-    if (!invoice) throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
+    if (!invoice)
+      throw new NotFoundException({
+        code: "INVOICE_NOT_FOUND",
+        message: "Invoice not found",
+      });
     return this.toResponse(invoice);
   }
 
@@ -124,11 +188,20 @@ export class InvoicesService {
     const where = this.buildWhere(filter, await this.scope(actor));
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.invoice.findMany({
-        where, include: INVOICE_INCLUDE, orderBy: { createdAt: filter.order }, skip: filter.skip, take: filter.limit,
+        where,
+        include: INVOICE_INCLUDE,
+        orderBy: { createdAt: filter.order },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.invoice.count({ where }),
     ]);
-    return paginate(rows.map((r) => this.toResponse(r)), total, filter.page, filter.limit);
+    return paginate(
+      rows.map((r) => this.toResponse(r)),
+      total,
+      filter.page,
+      filter.limit,
+    );
   }
 
   async customerHistory(actor: AuthenticatedUser, filter: InvoiceFilterDto) {
@@ -136,27 +209,51 @@ export class InvoicesService {
   }
 
   // ---------------- Download (stream PDF directly) ----------------
-  async download(id: string, actor: AuthenticatedUser): Promise<{ buffer: Buffer; filename: string }> {
+  async download(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ buffer: Buffer; filename: string }> {
     const invoice = await this.requireInvoice(id);
     const isOwner = await this.scope(actor);
-    const accessible = await this.prisma.invoice.findFirst({ where: { id, deletedAt: null, ...isOwner } });
-    if (!accessible) throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
+    const accessible = await this.prisma.invoice.findFirst({
+      where: { id, deletedAt: null, ...isOwner },
+    });
+    if (!accessible)
+      throw new NotFoundException({
+        code: "INVOICE_NOT_FOUND",
+        message: "Invoice not found",
+      });
 
     const buffer = await this.pdf.generate(this.toPdfData(invoice));
-    await this.audit(actor.id, 'invoice.downloaded', id, undefined);
+    await this.audit(actor.id, "invoice.downloaded", id, undefined);
     return { buffer, filename: `invoice-${invoice.invoiceNumber}.pdf` };
   }
 
   // ---------------- Export (admin, CSV) — additive ----------------
-  async exportCsv(actor: AuthenticatedUser, filter: InvoiceFilterDto): Promise<string> {
+  async exportCsv(
+    actor: AuthenticatedUser,
+    filter: InvoiceFilterDto,
+  ): Promise<string> {
     const where = this.buildWhere(filter, {});
-    const rows = await this.prisma.invoice.findMany({ where, include: INVOICE_INCLUDE, orderBy: { createdAt: 'desc' } });
-    const header = 'invoice_number,status,customer,total,currency,booking_id,created_at';
-    const lines = rows.map((r) => [
-      r.invoiceNumber, r.status, r.customer.user.fullName.replace(/,/g, ' '),
-      Number(r.totalAmount), r.currency, r.bookingId ?? '', r.createdAt.toISOString(),
-    ].join(','));
-    return [header, ...lines].join('\n');
+    const rows = await this.prisma.invoice.findMany({
+      where,
+      include: INVOICE_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+    const header =
+      "invoice_number,status,customer,total,currency,booking_id,created_at";
+    const lines = rows.map((r) =>
+      [
+        r.invoiceNumber,
+        r.status,
+        r.customer.user.fullName.replace(/,/g, " "),
+        Number(r.totalAmount),
+        r.currency,
+        r.bookingId ?? "",
+        r.createdAt.toISOString(),
+      ].join(","),
+    );
+    return [header, ...lines].join("\n");
   }
 
   // ================= helpers =================
@@ -166,13 +263,21 @@ export class InvoicesService {
     const key = `invoices/${invoice.id}.pdf`;
     await this.storage.uploadPdf(key, buffer);
     await this.prisma.$transaction([
-      this.prisma.invoice.update({ where: { id: invoice.id }, data: { pdfUrl: key } }),
+      this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { pdfUrl: key },
+      }),
       this.prisma.mediaFile.upsert({
         where: { storageKey: key },
         update: { sizeBytes: buffer.byteLength },
         create: {
-          type: MediaType.DOCUMENT, storageKey: key, url: key, contentType: 'application/pdf',
-          sizeBytes: buffer.byteLength, ownerType: 'invoice', ownerId: invoice.id,
+          type: MediaType.DOCUMENT,
+          storageKey: key,
+          url: key,
+          contentType: "application/pdf",
+          sizeBytes: buffer.byteLength,
+          ownerType: "invoice",
+          ownerId: invoice.id,
         },
       }),
     ]);
@@ -181,16 +286,22 @@ export class InvoicesService {
 
   private async recomputeTotals(invoice: InvoiceRow): Promise<InvoiceRow> {
     const booking = await this.prisma.booking.findUnique({
-      where: { id: invoice.bookingId! }, include: { address: { select: { country: true } } },
+      where: { id: invoice.bookingId! },
+      include: { address: { select: { country: true } } },
     });
     if (!booking) return invoice;
     const subtotal = Number(booking.price);
     const discount = Number(booking.discountAmount);
     const taxable = Math.max(0, subtotal - discount);
-    const tax = this.tax.calculate(taxable, booking.address?.country ?? 'IN');
+    const tax = this.tax.calculate(taxable, booking.address?.country ?? "IN");
     await this.prisma.invoice.update({
       where: { id: invoice.id },
-      data: { subtotalAmount: subtotal, discountAmount: discount, taxAmount: tax.amount, totalAmount: taxable + tax.amount },
+      data: {
+        subtotalAmount: subtotal,
+        discountAmount: discount,
+        taxAmount: tax.amount,
+        totalAmount: taxable + tax.amount,
+      },
     });
     return this.requireInvoice(invoice.id);
   }
@@ -198,10 +309,15 @@ export class InvoicesService {
   private toPdfData(invoice: InvoiceRow): InvoicePdfData {
     const b = invoice.booking;
     const subtotal = Number(invoice.subtotalAmount);
-    const lineItems: InvoiceLineItem[] = [{
-      description: b?.service?.name ?? b?.package?.name ?? 'Pest control service',
-      quantity: 1, unitAmount: subtotal, amount: subtotal,
-    }];
+    const lineItems: InvoiceLineItem[] = [
+      {
+        description:
+          b?.service?.name ?? b?.package?.name ?? "Pest control service",
+        quantity: 1,
+        unitAmount: subtotal,
+        amount: subtotal,
+      },
+    ];
     const taxAmount = Number(invoice.taxAmount);
     const taxable = subtotal - Number(invoice.discountAmount);
     const payment = invoice.payments[0];
@@ -216,58 +332,120 @@ export class InvoicesService {
         name: invoice.customer.user.fullName,
         email: invoice.customer.user.email,
         phone: invoice.customer.user.phone,
-        address: addr ? `${addr.line1}, ${addr.city}, ${addr.state} ${addr.postalCode}` : undefined,
+        address: addr
+          ? `${addr.line1}, ${addr.city}, ${addr.state} ${addr.postalCode}`
+          : undefined,
       },
       lineItems,
       subtotal,
       discount: Number(invoice.discountAmount),
-      tax: { label: 'GST', rate: taxable > 0 ? taxAmount / taxable : 0, amount: taxAmount },
+      tax: {
+        label: "GST",
+        rate: taxable > 0 ? taxAmount / taxable : 0,
+        amount: taxAmount,
+      },
       total: Number(invoice.totalAmount),
       payment: payment
-        ? { method: payment.method, status: payment.status, amount: Number(payment.amount), transactionId: payment.providerTransactionId }
+        ? {
+            method: payment.method,
+            status: payment.status,
+            amount: Number(payment.amount),
+            transactionId: payment.providerTransactionId,
+          }
         : null,
     };
   }
 
-  private buildWhere(filter: InvoiceFilterDto, scope: Prisma.InvoiceWhereInput): Prisma.InvoiceWhereInput {
+  private buildWhere(
+    filter: InvoiceFilterDto,
+    scope: Prisma.InvoiceWhereInput,
+  ): Prisma.InvoiceWhereInput {
     return {
-      deletedAt: null, ...scope,
+      deletedAt: null,
+      ...scope,
       ...(filter.status ? { status: filter.status } : {}),
-      ...(filter.customer_id ? { customer: { userId: filter.customer_id } } : {}),
+      ...(filter.customer_id
+        ? { customer: { userId: filter.customer_id } }
+        : {}),
       ...(filter.search
-        ? { OR: [
-            { invoiceNumber: { contains: filter.search, mode: 'insensitive' } },
-            { customer: { user: { fullName: { contains: filter.search, mode: 'insensitive' } } } },
-            { customer: { user: { email: { contains: filter.search, mode: 'insensitive' } } } },
-          ] }
+        ? {
+            OR: [
+              {
+                invoiceNumber: { contains: filter.search, mode: "insensitive" },
+              },
+              {
+                customer: {
+                  user: {
+                    fullName: { contains: filter.search, mode: "insensitive" },
+                  },
+                },
+              },
+              {
+                customer: {
+                  user: {
+                    email: { contains: filter.search, mode: "insensitive" },
+                  },
+                },
+              },
+            ],
+          }
         : {}),
       ...(filter.dateFrom || filter.dateTo
-        ? { createdAt: { ...(filter.dateFrom ? { gte: new Date(filter.dateFrom) } : {}), ...(filter.dateTo ? { lte: new Date(filter.dateTo) } : {}) } }
+        ? {
+            createdAt: {
+              ...(filter.dateFrom ? { gte: new Date(filter.dateFrom) } : {}),
+              ...(filter.dateTo ? { lte: new Date(filter.dateTo) } : {}),
+            },
+          }
         : {}),
     };
   }
 
   private async requireInvoice(id: string): Promise<InvoiceRow> {
-    const invoice = await this.prisma.invoice.findFirst({ where: { id, deletedAt: null }, include: INVOICE_INCLUDE });
-    if (!invoice) throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, deletedAt: null },
+      include: INVOICE_INCLUDE,
+    });
+    if (!invoice)
+      throw new NotFoundException({
+        code: "INVOICE_NOT_FOUND",
+        message: "Invoice not found",
+      });
     return invoice;
   }
 
-  private async scope(actor: AuthenticatedUser): Promise<Prisma.InvoiceWhereInput> {
+  private async scope(
+    actor: AuthenticatedUser,
+  ): Promise<Prisma.InvoiceWhereInput> {
     if (actor.role === UserRole.ADMIN) return {};
     if (actor.role === UserRole.CUSTOMER) {
-      const p = await this.prisma.customerProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
-      return { customerId: p?.id ?? '00000000-0000-0000-0000-000000000000' };
+      const p = await this.prisma.customerProfile.findUnique({
+        where: { userId: actor.id },
+        select: { id: true },
+      });
+      return { customerId: p?.id ?? "00000000-0000-0000-0000-000000000000" };
     }
     if (actor.role === UserRole.TECHNICIAN) {
-      const p = await this.prisma.technicianProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
-      return { booking: { assignments: { some: { technicianId: p?.id ?? '0' } } } };
+      const p = await this.prisma.technicianProfile.findUnique({
+        where: { userId: actor.id },
+        select: { id: true },
+      });
+      return {
+        booking: { assignments: { some: { technicianId: p?.id ?? "0" } } },
+      };
     }
-    return { id: '00000000-0000-0000-0000-000000000000' };
+    return { id: "00000000-0000-0000-0000-000000000000" };
   }
 
-  private audit(actorId: string, action: string, entityId: string, metadata?: Prisma.InputJsonValue) {
-    return this.prisma.auditLog.create({ data: { actorId, action, entityType: 'invoice', entityId, metadata } });
+  private audit(
+    actorId: string,
+    action: string,
+    entityId: string,
+    metadata?: Prisma.InputJsonValue,
+  ) {
+    return this.prisma.auditLog.create({
+      data: { actorId, action, entityType: "invoice", entityId, metadata },
+    });
   }
 
   private toResponse(i: InvoiceRow) {
@@ -283,7 +461,11 @@ export class InvoicesService {
       due_date: i.dueDate,
       has_pdf: Boolean(i.pdfUrl),
       booking_id: i.bookingId,
-      customer: { id: i.customer.id, name: i.customer.user.fullName, email: i.customer.user.email },
+      customer: {
+        id: i.customer.id,
+        name: i.customer.user.fullName,
+        email: i.customer.user.email,
+      },
       created_at: i.createdAt,
       updated_at: i.updatedAt,
     };

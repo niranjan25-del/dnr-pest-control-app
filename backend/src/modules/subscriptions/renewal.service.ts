@@ -9,11 +9,16 @@
 // ⚠ SCHEDULING: processDueRenewals / sendRenewalReminders must be invoked on a schedule.
 // Wire @nestjs/schedule (@Cron) or an external cron/SQS to call them.
 
-import { Injectable, Logger } from '@nestjs/common';
-import { NotificationStatus, NotificationType, Prisma, SubscriptionStatus } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { RecurringBookingService } from './recurring-booking.service';
-import { nextCycleDate } from './enums';
+import { Injectable, Logger } from "@nestjs/common";
+import {
+  NotificationStatus,
+  NotificationType,
+  Prisma,
+  SubscriptionStatus,
+} from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { RecurringBookingService } from "./recurring-booking.service";
+import { nextCycleDate } from "./enums";
 
 @Injectable()
 export class RenewalService {
@@ -28,16 +33,22 @@ export class RenewalService {
     const until = new Date(Date.now() + daysAhead * 86400_000);
     const due = await this.prisma.subscription.findMany({
       where: {
-        deletedAt: null, status: SubscriptionStatus.ACTIVE,
+        deletedAt: null,
+        status: SubscriptionStatus.ACTIVE,
         nextBillingDate: { lte: until, gte: new Date() },
       },
-      include: { plan: { select: { name: true } }, customer: { select: { userId: true } } },
+      include: {
+        plan: { select: { name: true } },
+        customer: { select: { userId: true } },
+      },
     });
     for (const sub of due) {
       await this.prisma.notification.create({
         data: {
-          userId: sub.customer.userId, type: NotificationType.PAYMENT, status: NotificationStatus.PENDING,
-          title: 'Upcoming subscription renewal',
+          userId: sub.customer.userId,
+          type: NotificationType.PAYMENT,
+          status: NotificationStatus.PENDING,
+          title: "Upcoming subscription renewal",
           body: `Your ${sub.plan.name} plan renews on ${sub.nextBillingDate?.toISOString().slice(0, 10)}.`,
           data: { subscriptionId: sub.id } as Prisma.InputJsonValue,
         },
@@ -50,7 +61,11 @@ export class RenewalService {
   async processDueRenewals(): Promise<{ processed: number }> {
     const now = new Date();
     const due = await this.prisma.subscription.findMany({
-      where: { deletedAt: null, status: SubscriptionStatus.ACTIVE, nextBillingDate: { lte: now } },
+      where: {
+        deletedAt: null,
+        status: SubscriptionStatus.ACTIVE,
+        nextBillingDate: { lte: now },
+      },
       include: { plan: true },
     });
     let processed = 0;
@@ -60,23 +75,38 @@ export class RenewalService {
         const serviceDate = sub.nextServiceDate ?? now;
         await this.prisma.$transaction(async (tx) => {
           await this.recurring.generateVisit(tx, {
-            subscription: sub, plan: sub.plan, addressId, scheduledStart: serviceDate,
+            subscription: sub,
+            plan: sub.plan,
+            addressId,
+            scheduledStart: serviceDate,
             changedById: sub.customerId,
           });
           await tx.subscription.update({
             where: { id: sub.id },
             data: {
-              nextBillingDate: nextCycleDate(sub.nextBillingDate ?? now, sub.plan.billingCycle),
-              nextServiceDate: nextCycleDate(serviceDate, sub.plan.billingCycle),
+              nextBillingDate: nextCycleDate(
+                sub.nextBillingDate ?? now,
+                sub.plan.billingCycle,
+              ),
+              nextServiceDate: nextCycleDate(
+                serviceDate,
+                sub.plan.billingCycle,
+              ),
             },
           });
           await tx.auditLog.create({
-            data: { action: 'subscription.renewed', entityType: 'subscription', entityId: sub.id },
+            data: {
+              action: "subscription.renewed",
+              entityType: "subscription",
+              entityId: sub.id,
+            },
           });
         });
         processed++;
       } catch (err) {
-        this.logger.error(`Renewal failed for subscription ${sub.id}: ${(err as Error).message}`);
+        this.logger.error(
+          `Renewal failed for subscription ${sub.id}: ${(err as Error).message}`,
+        );
       }
     }
     this.logger.log(`Renewals processed: ${processed}/${due.length}`);

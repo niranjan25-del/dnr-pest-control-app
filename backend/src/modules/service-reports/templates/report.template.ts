@@ -5,61 +5,115 @@
 // services, a chemical-usage table (compliance), before/after photos, summary, recommendations,
 // safety/regulatory notes, and the customer signature image.
 
-import type PDFDocument from 'pdfkit';
-import { COMPANY } from '../../invoices/templates/company';
-import { ReportPdfData } from '../interfaces';
+import type PDFDocument from "pdfkit";
+import { COMPANY } from "../../invoices/templates/company";
+import { ReportPdfData } from "../interfaces";
 
-export function renderReport(doc: typeof PDFDocument.prototype, data: ReportPdfData): void {
+export function renderReport(
+  doc: typeof PDFDocument.prototype,
+  data: ReportPdfData,
+): void {
   const left = 50;
   const right = 545;
   let y = 50;
 
   const heading = (text: string) => {
-    if (y > 720) { doc.addPage(); y = 50; }
+    if (y > 720) {
+      doc.addPage();
+      y = 50;
+    }
     doc.fillColor(COMPANY.brandColor).fontSize(12).text(text, left, y);
     y += 18;
-    doc.fillColor('#222').fontSize(9);
+    doc.fillColor("#222").fontSize(9);
   };
   const para = (text: string) => {
-    if (y > 740) { doc.addPage(); y = 50; }
-    doc.fillColor('#333').fontSize(9).text(text, left, y, { width: right - left });
+    if (y > 740) {
+      doc.addPage();
+      y = 50;
+    }
+    doc
+      .fillColor("#333")
+      .fontSize(9)
+      .text(text, left, y, { width: right - left });
     y = doc.y + 6;
   };
 
   // Header
   doc.fillColor(COMPANY.brandColor).fontSize(20).text(COMPANY.name, left, y);
-  doc.fillColor('#666').fontSize(9).text('Service Report', left, y + 24);
-  doc.fillColor('#333').fontSize(8)
-    .text(`No: ${data.reportNumber}`, right - 200, y, { width: 200, align: 'right' })
-    .text(`Status: ${data.status}`, right - 200, y + 12, { width: 200, align: 'right' })
-    .text(`Created: ${data.createdAt.toISOString().slice(0, 10)}`, right - 200, y + 24, { width: 200, align: 'right' });
-  if (data.submittedAt) doc.text(`Submitted: ${data.submittedAt.toISOString().slice(0, 10)}`, right - 200, y + 36, { width: 200, align: 'right' });
+  doc
+    .fillColor("#666")
+    .fontSize(9)
+    .text("Service Report", left, y + 24);
+  doc
+    .fillColor("#333")
+    .fontSize(8)
+    .text(`No: ${data.reportNumber}`, right - 200, y, {
+      width: 200,
+      align: "right",
+    })
+    .text(`Status: ${data.status}`, right - 200, y + 12, {
+      width: 200,
+      align: "right",
+    })
+    .text(
+      `Created: ${data.createdAt.toISOString().slice(0, 10)}`,
+      right - 200,
+      y + 24,
+      { width: 200, align: "right" },
+    );
+  if (data.submittedAt)
+    doc.text(
+      `Submitted: ${data.submittedAt.toISOString().slice(0, 10)}`,
+      right - 200,
+      y + 36,
+      { width: 200, align: "right" },
+    );
   y += 60;
-  doc.moveTo(left, y).lineTo(right, y).strokeColor('#ddd').stroke(); y += 12;
+  doc.moveTo(left, y).lineTo(right, y).strokeColor("#ddd").stroke();
+  y += 12;
 
   // Parties
-  heading('CUSTOMER');
-  para(`${data.customer.name}  •  ${data.customer.email}${data.customer.phone ? '  •  ' + data.customer.phone : ''}`);
+  heading("CUSTOMER");
+  para(
+    `${data.customer.name}  •  ${data.customer.email}${data.customer.phone ? "  •  " + data.customer.phone : ""}`,
+  );
   if (data.customer.address) para(data.customer.address);
-  heading('TECHNICIAN');
-  para(`${data.technician.name}${data.technician.license ? '  •  Lic: ' + data.technician.license : ''}`);
+  heading("TECHNICIAN");
+  para(
+    `${data.technician.name}${data.technician.license ? "  •  Lic: " + data.technician.license : ""}`,
+  );
 
   // Findings & services
-  if (data.findings.length) { heading('INITIAL FINDINGS / PEST OBSERVATIONS'); data.findings.forEach((f) => para(`• ${f}`)); }
-  if (data.services.length) { heading('SERVICES PERFORMED'); data.services.forEach((s) => para(`• ${s}`)); }
+  if (data.findings.length) {
+    heading("INITIAL FINDINGS / PEST OBSERVATIONS");
+    data.findings.forEach((f) => para(`• ${f}`));
+  }
+  if (data.services.length) {
+    heading("SERVICES PERFORMED");
+    data.services.forEach((s) => para(`• ${s}`));
+  }
 
   // Chemicals (compliance table)
   if (data.chemicals.length) {
-    heading('PRODUCTS / CHEMICAL USAGE');
-    doc.fillColor('#111').fontSize(8)
-      .text('Product', left, y).text('Qty', 280, y).text('Area / Notes', 340, y, { width: right - 340 });
+    heading("PRODUCTS / CHEMICAL USAGE");
+    doc
+      .fillColor("#111")
+      .fontSize(8)
+      .text("Product", left, y)
+      .text("Qty", 280, y)
+      .text("Area / Notes", 340, y, { width: right - 340 });
     y += 14;
     data.chemicals.forEach((c) => {
-      if (y > 740) { doc.addPage(); y = 50; }
-      doc.fillColor('#333').fontSize(8)
+      if (y > 740) {
+        doc.addPage();
+        y = 50;
+      }
+      doc
+        .fillColor("#333")
+        .fontSize(8)
         .text(c.chemicalName, left, y, { width: 220 })
-        .text(c.quantity ?? '-', 280, y, { width: 55 })
-        .text(c.area_notes ?? '-', 340, y, { width: right - 340 });
+        .text(c.quantity ?? "-", 280, y, { width: 55 })
+        .text(c.area_notes ?? "-", 340, y, { width: right - 340 });
       y = doc.y + 6;
     });
   }
@@ -70,28 +124,62 @@ export function renderReport(doc: typeof PDFDocument.prototype, data: ReportPdfD
     heading(title);
     let x = left;
     photos.slice(0, 6).forEach((buf) => {
-      if (x + 160 > right) { x = left; y += 130; }
-      if (y > 640) { doc.addPage(); y = 50; x = left; }
-      try { doc.image(buf, x, y, { fit: [150, 120] }); } catch { /* skip unreadable image */ }
+      if (x + 160 > right) {
+        x = left;
+        y += 130;
+      }
+      if (y > 640) {
+        doc.addPage();
+        y = 50;
+        x = left;
+      }
+      try {
+        doc.image(buf, x, y, { fit: [150, 120] });
+      } catch {
+        /* skip unreadable image */
+      }
       x += 165;
     });
     y += 132;
   };
-  photoStrip('BEFORE-SERVICE PHOTOS', data.beforePhotos);
-  photoStrip('AFTER-SERVICE PHOTOS', data.afterPhotos);
+  photoStrip("BEFORE-SERVICE PHOTOS", data.beforePhotos);
+  photoStrip("AFTER-SERVICE PHOTOS", data.afterPhotos);
 
   // Narrative
-  if (data.summary) { heading('RESULTS SUMMARY'); para(data.summary); }
-  if (data.recommendations) { heading('RECOMMENDATIONS'); para(data.recommendations); }
-  if (data.safetyNotes.length) { heading('SAFETY NOTES'); data.safetyNotes.forEach((n) => para(`• ${n}`)); }
-  if (data.regulatoryNotes.length) { heading('REGULATORY NOTES'); data.regulatoryNotes.forEach((n) => para(`• ${n}`)); }
+  if (data.summary) {
+    heading("RESULTS SUMMARY");
+    para(data.summary);
+  }
+  if (data.recommendations) {
+    heading("RECOMMENDATIONS");
+    para(data.recommendations);
+  }
+  if (data.safetyNotes.length) {
+    heading("SAFETY NOTES");
+    data.safetyNotes.forEach((n) => para(`• ${n}`));
+  }
+  if (data.regulatoryNotes.length) {
+    heading("REGULATORY NOTES");
+    data.regulatoryNotes.forEach((n) => para(`• ${n}`));
+  }
 
   // Signature
-  heading('CUSTOMER SIGNATURE');
+  heading("CUSTOMER SIGNATURE");
   if (data.signature) {
-    try { doc.image(data.signature, left, y, { fit: [220, 90] }); y += 96; } catch { para('(signature on file)'); }
+    try {
+      doc.image(data.signature, left, y, { fit: [220, 90] });
+      y += 96;
+    } catch {
+      para("(signature on file)");
+    }
   } else {
-    para('(not captured)');
+    para("(not captured)");
   }
-  doc.fillColor('#999').fontSize(8).text(`Generated by ${COMPANY.name}.`, left, 770, { width: right - left, align: 'center' });
+  doc
+    .fillColor("#999")
+    .fontSize(8)
+    .text(`Generated by ${COMPANY.name}.`, left, 770, {
+      width: right - left,
+      align: "center",
+    });
 }

@@ -9,7 +9,7 @@ export interface DiscountContext {
 export interface ValidationPreview {
   valid: boolean;
   code: string;
-  reason?: string;          // present when valid=false
+  reason?: string; // present when valid=false
   discount_amount: number;
   final_amount: number;
 }
@@ -19,5 +19,5 @@ export interface CampaignPerformance {
   code: string;
   redemptions: number;
   unique_customers: number;
-  total_discount: number;   // revenue impact (discount given)
+  total_discount: number; // revenue impact (discount given)
 }

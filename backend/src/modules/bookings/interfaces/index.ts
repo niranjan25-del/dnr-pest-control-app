@@ -3,7 +3,7 @@
 // Light shared types for the bookings module. Response shaping lives in the service
 // (toResponse); these document the public booking shape for consumers/tests.
 
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from "@prisma/client";
 
 export interface BookingResponse {
   id: string;

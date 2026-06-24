@@ -5,16 +5,30 @@
 // declared before :id.
 
 import {
-  Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
-import { UserRole } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators';
-import { ServiceAreasService } from './service-areas.service';
-import { CoverageQueryDto, CreateServiceAreaDto, ServiceAreaFilterDto, UpdateServiceAreaDto } from './dto';
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { UserRole } from "@prisma/client";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators";
+import { ServiceAreasService } from "./service-areas.service";
+import {
+  CoverageQueryDto,
+  CreateServiceAreaDto,
+  ServiceAreaFilterDto,
+  UpdateServiceAreaDto,
+} from "./dto";
 
-@Controller({ path: 'service-areas', version: '1' })
+@Controller({ path: "service-areas", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ServiceAreasController {
   constructor(private readonly serviceAreas: ServiceAreasService) {}
@@ -26,7 +40,7 @@ export class ServiceAreasController {
   }
 
   // Any authenticated user — used to validate booking eligibility by postal code.
-  @Get('coverage')
+  @Get("coverage")
   coverage(@Query() query: CoverageQueryDto) {
     return this.serviceAreas.checkCoverage(query.postalCode);
   }
@@ -37,33 +51,36 @@ export class ServiceAreasController {
     return this.serviceAreas.create(dto);
   }
 
-  @Get(':id')
+  @Get(":id")
   @Roles(UserRole.ADMIN)
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  findOne(@Param("id", ParseUUIDPipe) id: string) {
     return this.serviceAreas.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch(":id")
   @Roles(UserRole.ADMIN)
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateServiceAreaDto) {
+  update(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdateServiceAreaDto,
+  ) {
     return this.serviceAreas.update(id, dto);
   }
 
-  @Patch(':id/activate')
+  @Patch(":id/activate")
   @Roles(UserRole.ADMIN)
-  activate(@Param('id', ParseUUIDPipe) id: string) {
+  activate(@Param("id", ParseUUIDPipe) id: string) {
     return this.serviceAreas.setActive(id, true);
   }
 
-  @Patch(':id/deactivate')
+  @Patch(":id/deactivate")
   @Roles(UserRole.ADMIN)
-  deactivate(@Param('id', ParseUUIDPipe) id: string) {
+  deactivate(@Param("id", ParseUUIDPipe) id: string) {
     return this.serviceAreas.setActive(id, false);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @Roles(UserRole.ADMIN)
-  remove(@Param('id', ParseUUIDPipe) id: string) {
+  remove(@Param("id", ParseUUIDPipe) id: string) {
     return this.serviceAreas.remove(id);
   }
 }

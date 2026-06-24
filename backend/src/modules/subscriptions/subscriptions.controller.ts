@@ -6,21 +6,31 @@
 // job drive renewals without embedding a scheduler — declared before :id.
 
 import {
-  Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards,
-} from '@nestjs/common';
-import { UserRole } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles, CurrentUser } from '../auth/decorators';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { SubscriptionsService } from './subscriptions.service';
-import { RenewalService } from './renewal.service';
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { UserRole } from "@prisma/client";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles, CurrentUser } from "../auth/decorators";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { SubscriptionsService } from "./subscriptions.service";
+import { RenewalService } from "./renewal.service";
 import {
-  CancelSubscriptionDto, ChangePlanDto, CreateSubscriptionDto, PauseSubscriptionDto,
+  CancelSubscriptionDto,
+  ChangePlanDto,
+  CreateSubscriptionDto,
+  PauseSubscriptionDto,
   SubscriptionFilterDto,
-} from './dto';
+} from "./dto";
 
-@Controller({ path: 'subscriptions', version: '1' })
+@Controller({ path: "subscriptions", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SubscriptionsController {
   constructor(
@@ -30,55 +40,83 @@ export class SubscriptionsController {
 
   @Post()
   @Roles(UserRole.CUSTOMER, UserRole.ADMIN)
-  create(@CurrentUser() actor: AuthenticatedUser, @Body() dto: CreateSubscriptionDto) {
+  create(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: CreateSubscriptionDto,
+  ) {
     return this.subscriptions.create(actor, dto);
   }
 
   @Get()
-  list(@CurrentUser() actor: AuthenticatedUser, @Query() filter: SubscriptionFilterDto) {
+  list(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Query() filter: SubscriptionFilterDto,
+  ) {
     return this.subscriptions.list(actor, filter);
   }
 
   // --- ops triggers (admin) — declared before :id ---
-  @Post('process-renewals')
+  @Post("process-renewals")
   @Roles(UserRole.ADMIN)
   processRenewals() {
     return this.renewal.processDueRenewals();
   }
 
-  @Post('send-reminders')
+  @Post("send-reminders")
   @Roles(UserRole.ADMIN)
   sendReminders() {
     return this.renewal.sendRenewalReminders();
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+  @Get(":id")
+  findOne(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
     return this.subscriptions.findById(id, actor);
   }
 
-  @Post(':id/pause')
-  pause(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser, @Body() dto: PauseSubscriptionDto) {
+  @Post(":id/pause")
+  pause(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: PauseSubscriptionDto,
+  ) {
     return this.subscriptions.pause(id, actor, dto.reason);
   }
 
-  @Post(':id/resume')
-  resume(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+  @Post(":id/resume")
+  resume(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
     return this.subscriptions.resume(id, actor);
   }
 
-  @Post(':id/cancel')
-  cancel(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser, @Body() dto: CancelSubscriptionDto) {
+  @Post(":id/cancel")
+  cancel(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: CancelSubscriptionDto,
+  ) {
     return this.subscriptions.cancel(id, actor, dto);
   }
 
-  @Post(':id/upgrade')
-  upgrade(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser, @Body() dto: ChangePlanDto) {
+  @Post(":id/upgrade")
+  upgrade(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: ChangePlanDto,
+  ) {
     return this.subscriptions.changePlan(id, actor, dto);
   }
 
-  @Post(':id/downgrade')
-  downgrade(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser, @Body() dto: ChangePlanDto) {
+  @Post(":id/downgrade")
+  downgrade(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: ChangePlanDto,
+  ) {
     return this.subscriptions.changePlan(id, actor, dto);
   }
 }

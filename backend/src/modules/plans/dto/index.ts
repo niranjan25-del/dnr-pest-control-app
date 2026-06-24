@@ -9,32 +9,55 @@
 //     (count of visits) instead. A PlanService join table would be needed to model specific
 //     included services.
 
-import { BillingCycle } from '@prisma/client';
+import { BillingCycle } from "@prisma/client";
 import {
-  IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min, MaxLength,
-} from 'class-validator';
-import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  MaxLength,
+} from "class-validator";
+import { PaginationQueryDto } from "src/common/dto/pagination-query.dto";
 
 export class CreatePlanDto {
-  @IsString() @IsNotEmpty({ message: 'Plan name is required' }) @MaxLength(120)
+  @IsString()
+  @IsNotEmpty({ message: "Plan name is required" })
+  @MaxLength(120)
   name!: string;
 
-  @IsOptional() @IsString() @MaxLength(1000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   description?: string;
 
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must have at most 2 decimals' }) @Min(0)
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: "Price must have at most 2 decimals" },
+  )
+  @Min(0)
   price!: number;
 
-  @IsOptional() @IsString() @MaxLength(3)
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
   currency?: string;
 
-  @IsEnum(BillingCycle, { message: 'billingCycle must be WEEKLY, MONTHLY, QUARTERLY, or YEARLY' })
+  @IsEnum(BillingCycle, {
+    message: "billingCycle must be WEEKLY, MONTHLY, QUARTERLY, or YEARLY",
+  })
   billingCycle!: BillingCycle;
 
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   visitsPerCycle?: number;
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
 
@@ -49,6 +72,7 @@ export class UpdatePlanDto {
 }
 
 export class PlanFilterDto extends PaginationQueryDto {
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }

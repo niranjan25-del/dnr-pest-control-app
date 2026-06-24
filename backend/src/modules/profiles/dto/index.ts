@@ -12,52 +12,83 @@
 //                    emergencyContactPhone, availabilitySchedule Json
 // Name/phone/email are USER-level fields — update them via PATCH /users/:id, not here.
 
-import { CustomerType } from '@prisma/client';
+import { CustomerType } from "@prisma/client";
 import {
-  ArrayUnique, IsArray, IsBoolean, IsDateString, IsEnum, IsOptional, IsString, MaxLength,
-} from 'class-validator';
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
 
 export class CreateCustomerProfileDto {
-  @IsOptional() @IsEnum(CustomerType, { message: 'customerType must be RESIDENTIAL or COMMERCIAL' })
+  @IsOptional()
+  @IsEnum(CustomerType, {
+    message: "customerType must be RESIDENTIAL or COMMERCIAL",
+  })
   customerType?: CustomerType;
 
-  @IsOptional() @IsString() @MaxLength(160)
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
   companyName?: string;
 }
 
 export class UpdateCustomerProfileDto {
-  @IsOptional() @IsEnum(CustomerType)
+  @IsOptional()
+  @IsEnum(CustomerType)
   customerType?: CustomerType;
 
-  @IsOptional() @IsString() @MaxLength(160)
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
   companyName?: string;
 }
 
 export class CreateTechnicianProfileDto {
-  @IsOptional() @IsString() @MaxLength(80)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   licenseNumber?: string;
 
-  @IsOptional() @IsDateString({}, { message: 'licenseExpiry must be an ISO date' })
+  @IsOptional()
+  @IsDateString({}, { message: "licenseExpiry must be an ISO date" })
   licenseExpiry?: string;
 
-  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   skills?: string[];
 }
 
 export class UpdateTechnicianProfileDto {
-  @IsOptional() @IsString() @MaxLength(80)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   licenseNumber?: string;
 
-  @IsOptional() @IsDateString({}, { message: 'licenseExpiry must be an ISO date' })
+  @IsOptional()
+  @IsDateString({}, { message: "licenseExpiry must be an ISO date" })
   licenseExpiry?: string;
 
-  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   skills?: string[];
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isAvailable?: boolean;
 
   // Assign the technician to existing ServiceArea rows (by id).
-  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   serviceAreaIds?: string[];
 }

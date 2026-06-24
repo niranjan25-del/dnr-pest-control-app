@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
-import { TechnicianAssignmentModule } from '../technician-assignment/technician-assignment.module';
-import { DispatchController } from './dispatch.controller';
+import { Module } from "@nestjs/common";
+import { TechnicianAssignmentModule } from "../technician-assignment/technician-assignment.module";
+import { DispatchController } from "./dispatch.controller";
 
 @Module({
   imports: [TechnicianAssignmentModule],

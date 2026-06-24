@@ -1,18 +1,18 @@
-import * as path from 'path';
-import * as fs from 'fs';
-import { VersioningType } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { Logger } from 'nestjs-pino';
-import helmet from 'helmet';
+import * as path from "path";
+import * as fs from "fs";
+import { VersioningType } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { NestFactory } from "@nestjs/core";
+import { NestExpressApplication } from "@nestjs/platform-express";
+import { Logger } from "nestjs-pino";
+import helmet from "helmet";
 
-import { AppModule } from './app.module';
+import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
-    bufferLogs: false,  // don't buffer — ensures crash errors are visible in logs
+    bufferLogs: false, // don't buffer — ensures crash errors are visible in logs
   });
 
   const config = app.get(ConfigService);
@@ -21,31 +21,36 @@ async function bootstrap(): Promise<void> {
   app.use(helmet());
 
   app.enableCors({
-    origin: config.get<string[]>('app.corsOrigins') ?? [],
+    origin: config.get<string[]>("app.corsOrigins") ?? [],
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Request-Id'],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Idempotency-Key",
+      "X-Request-Id",
+    ],
   });
 
-  app.setGlobalPrefix(config.get<string>('app.apiPrefix') ?? 'api');
+  app.setGlobalPrefix(config.get<string>("app.apiPrefix") ?? "api");
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: config.get<string>('app.apiVersion') ?? '1',
+    defaultVersion: config.get<string>("app.apiVersion") ?? "1",
   });
 
   app.enableShutdownHooks();
 
   // Serve locally-stored uploads (used when AWS credentials are not set — dev fallback).
-  const uploadsDir = path.join(process.cwd(), 'uploads');
+  const uploadsDir = path.join(process.cwd(), "uploads");
   fs.mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+  app.useStaticAssets(uploadsDir, { prefix: "/uploads" });
 
-  const port = config.get<number>('app.port') ?? 3000;
+  const port = config.get<number>("app.port") ?? 3000;
   await app.listen(port);
   console.log(`DNR backend listening on :${port}`);
 }
 
 bootstrap().catch((err) => {
-  console.error('Fatal startup error:', err);
+  console.error("Fatal startup error:", err);
   process.exit(1);
 });

@@ -6,9 +6,9 @@
 // creation and renewals are driven by processDueRenewals() (cron). Each billing cycle
 // triggers a new Cashfree order that the customer pays via the app or a payment link.
 
-import { Injectable, Logger } from '@nestjs/common';
-import { SubscriptionPlan } from '@prisma/client';
-import { CashfreeService } from '../payments/cashfree.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { SubscriptionPlan } from "@prisma/client";
+import { CashfreeService } from "../payments/cashfree.service";
 
 @Injectable()
 export class CashfreeSubscriptionService {
@@ -23,7 +23,7 @@ export class CashfreeSubscriptionService {
   async createInitialPaymentOrder(params: {
     orderId: string;
     plan: SubscriptionPlan;
-    customerId: string;       // our CustomerProfile.id
+    customerId: string; // our CustomerProfile.id
     customerEmail: string;
     customerPhone: string;
     subscriptionId: string;
@@ -37,7 +37,9 @@ export class CashfreeSubscriptionService {
       customerPhone: params.customerPhone,
       tags: { subscriptionId: params.subscriptionId, planId: params.plan.id },
     });
-    this.logger.log(`Cashfree order ${order.orderId} created for subscription ${params.subscriptionId}`);
+    this.logger.log(
+      `Cashfree order ${order.orderId} created for subscription ${params.subscriptionId}`,
+    );
     return order;
   }
 }

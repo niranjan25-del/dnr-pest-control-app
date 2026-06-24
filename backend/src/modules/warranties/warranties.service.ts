@@ -3,10 +3,14 @@
 // BookingsService when a booking transitions to COMPLETED. Backfill runs on list so
 // historical completed bookings also surface warranties.
 
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, UserRole } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { BookingStatus, UserRole } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
 
 @Injectable()
 export class WarrantiesService {
@@ -19,7 +23,7 @@ export class WarrantiesService {
     const rows = await this.prisma.serviceWarranty.findMany({
       where: { booking: { customerId } },
       include: { booking: { select: { id: true } } },
-      orderBy: { expiresAt: 'asc' },
+      orderBy: { expiresAt: "asc" },
     });
     return rows.map((w) => this.toResponse(w));
   }
@@ -29,14 +33,22 @@ export class WarrantiesService {
       where: { bookingId },
       include: { booking: { select: { id: true, customerId: true } } },
     });
-    if (!warranty) throw new NotFoundException({ code: 'WARRANTY_NOT_FOUND', message: 'No warranty for this booking' });
+    if (!warranty)
+      throw new NotFoundException({
+        code: "WARRANTY_NOT_FOUND",
+        message: "No warranty for this booking",
+      });
 
     if (actor.role === UserRole.CUSTOMER) {
       const profile = await this.prisma.customerProfile.findUnique({
-        where: { userId: actor.id }, select: { id: true },
+        where: { userId: actor.id },
+        select: { id: true },
       });
       if (!profile || warranty.booking.customerId !== profile.id) {
-        throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Not your booking' });
+        throw new ForbiddenException({
+          code: "FORBIDDEN",
+          message: "Not your booking",
+        });
       }
     }
 
@@ -80,26 +92,40 @@ export class WarrantiesService {
           },
           update: {},
         })
-        .catch(() => {/* concurrent request already created it */});
+        .catch(() => {
+          /* concurrent request already created it */
+        });
     }
   }
 
   private async resolveCustomerId(actor: AuthenticatedUser): Promise<string> {
     if (actor.role === UserRole.CUSTOMER) {
-      const p = await this.prisma.customerProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
-      return p?.id ?? '00000000-0000-0000-0000-000000000000';
+      const p = await this.prisma.customerProfile.findUnique({
+        where: { userId: actor.id },
+        select: { id: true },
+      });
+      return p?.id ?? "00000000-0000-0000-0000-000000000000";
     }
-    return '00000000-0000-0000-0000-000000000000';
+    return "00000000-0000-0000-0000-000000000000";
   }
 
   private toResponse(w: {
-    id: string; bookingId: string; serviceName: string; warrantyDays: number;
-    expiresAt: Date; isActive: boolean; claimedAt: Date | null;
-    createdAt: Date; updatedAt: Date;
+    id: string;
+    bookingId: string;
+    serviceName: string;
+    warrantyDays: number;
+    expiresAt: Date;
+    isActive: boolean;
+    claimedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
   }) {
     const now = new Date();
     const msLeft = w.expiresAt.getTime() - now.getTime();
-    const daysRemaining = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil(msLeft / (1000 * 60 * 60 * 24)),
+    );
     return {
       id: w.id,
       booking_id: w.bookingId,

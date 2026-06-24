@@ -1,6 +1,6 @@
 // src/modules/notifications/interfaces/index.ts
 
-import { NotificationType } from '@prisma/client';
+import { NotificationType } from "@prisma/client";
 
 export interface NotificationPayload {
   type: NotificationType;

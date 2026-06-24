@@ -9,14 +9,22 @@
 //   • "Rescheduled" is an ACTION (it moves the time window) recorded in BookingStatusHistory
 //     with a note — not a distinct status.
 
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from "@prisma/client";
 
 // Allowed status transitions (state machine).
 export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   PENDING: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],
-  CONFIRMED: [BookingStatus.EN_ROUTE, BookingStatus.CANCELLED, BookingStatus.NO_SHOW],
+  CONFIRMED: [
+    BookingStatus.EN_ROUTE,
+    BookingStatus.CANCELLED,
+    BookingStatus.NO_SHOW,
+  ],
   EN_ROUTE: [BookingStatus.ARRIVED, BookingStatus.CANCELLED],
-  ARRIVED: [BookingStatus.IN_PROGRESS, BookingStatus.NO_SHOW, BookingStatus.CANCELLED],
+  ARRIVED: [
+    BookingStatus.IN_PROGRESS,
+    BookingStatus.NO_SHOW,
+    BookingStatus.CANCELLED,
+  ],
   IN_PROGRESS: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
   COMPLETED: [],
   CANCELLED: [],
@@ -26,29 +34,42 @@ export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 // Statuses a technician may set on an assigned booking (progressing the job).
 // CONFIRMED is included so technicians can accept (confirm) a pending assignment.
 export const TECHNICIAN_SETTABLE: BookingStatus[] = [
-  BookingStatus.CONFIRMED, BookingStatus.EN_ROUTE, BookingStatus.ARRIVED,
-  BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED, BookingStatus.NO_SHOW,
+  BookingStatus.CONFIRMED,
+  BookingStatus.EN_ROUTE,
+  BookingStatus.ARRIVED,
+  BookingStatus.IN_PROGRESS,
+  BookingStatus.COMPLETED,
+  BookingStatus.NO_SHOW,
 ];
 
 // "Live" statuses that occupy a slot (used for conflict detection + cancel eligibility).
 export const ACTIVE_STATUSES: BookingStatus[] = [
-  BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.EN_ROUTE,
-  BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS,
+  BookingStatus.PENDING,
+  BookingStatus.CONFIRMED,
+  BookingStatus.EN_ROUTE,
+  BookingStatus.ARRIVED,
+  BookingStatus.IN_PROGRESS,
 ];
 
 // Statuses from which a customer/admin may cancel or reschedule.
-export const CANCELLABLE_BY_CUSTOMER: BookingStatus[] = [BookingStatus.PENDING, BookingStatus.CONFIRMED];
+export const CANCELLABLE_BY_CUSTOMER: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.CONFIRMED,
+];
 
-export function isTransitionAllowed(from: BookingStatus, to: BookingStatus): boolean {
+export function isTransitionAllowed(
+  from: BookingStatus,
+  to: BookingStatus,
+): boolean {
   return BOOKING_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
 // --- Scheduling rules (defaults; promote to ConfigService/DB if they must be tunable live) ---
 export const SCHEDULING = {
-  WORKING_HOUR_START: 9,   // 09:00 local
-  WORKING_HOUR_END: 21,    // 21:00 local — window must END by this hour
-  SLOT_BUFFER_MIN: 30,     // buffer added after the service duration
-  MIN_LEAD_TIME_MIN: 300,  // earliest a booking may be scheduled from "now" (5 hours)
+  WORKING_HOUR_START: 9, // 09:00 local
+  WORKING_HOUR_END: 21, // 21:00 local — window must END by this hour
+  SLOT_BUFFER_MIN: 30, // buffer added after the service duration
+  MIN_LEAD_TIME_MIN: 300, // earliest a booking may be scheduled from "now" (5 hours)
   MAX_CONCURRENT_PER_SLOT: 5, // capacity model pre-assignment (overlapping live bookings)
 } as const;
 
@@ -57,6 +78,6 @@ export const SCHEDULING = {
 // number is required, add `bookingNumber String @unique` to Booking and generate on create.
 export function formatBookingNumber(id: string, createdAt: Date): string {
   const d = createdAt;
-  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
-  return `DNR-${ymd}-${id.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+  return `DNR-${ymd}-${id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 }

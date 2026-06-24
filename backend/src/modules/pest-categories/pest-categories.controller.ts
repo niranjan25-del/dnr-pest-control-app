@@ -3,16 +3,29 @@
 // /pest-categories — reads any authenticated user; writes ADMIN only.
 
 import {
-  Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
-import { UserRole } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators';
-import { PestCategoriesService } from './pest-categories.service';
-import { CreatePestCategoryDto, PestCategoryFilterDto, UpdatePestCategoryDto } from './dto';
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { UserRole } from "@prisma/client";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators";
+import { PestCategoriesService } from "./pest-categories.service";
+import {
+  CreatePestCategoryDto,
+  PestCategoryFilterDto,
+  UpdatePestCategoryDto,
+} from "./dto";
 
-@Controller({ path: 'pest-categories', version: '1' })
+@Controller({ path: "pest-categories", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PestCategoriesController {
   constructor(private readonly pestCategories: PestCategoriesService) {}
@@ -22,8 +35,8 @@ export class PestCategoriesController {
     return this.pestCategories.list(filter);
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  @Get(":id")
+  findOne(@Param("id", ParseUUIDPipe) id: string) {
     return this.pestCategories.findOne(id);
   }
 
@@ -33,15 +46,18 @@ export class PestCategoriesController {
     return this.pestCategories.create(dto);
   }
 
-  @Patch(':id')
+  @Patch(":id")
   @Roles(UserRole.ADMIN)
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePestCategoryDto) {
+  update(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePestCategoryDto,
+  ) {
     return this.pestCategories.update(id, dto);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @Roles(UserRole.ADMIN)
-  remove(@Param('id', ParseUUIDPipe) id: string) {
+  remove(@Param("id", ParseUUIDPipe) id: string) {
     return this.pestCategories.remove(id);
   }
 }

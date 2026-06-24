@@ -8,18 +8,41 @@
 //   • discount_percentage = round((1 − price / base_total) × 100), if base_total > 0
 // Price changes are audited.
 
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { uniqueSlug } from 'src/common/utils/slug.util';
-import { CreatePackageDto, IncludedServiceDto, PackageFilterDto, UpdatePackageDto } from './dto';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { uniqueSlug } from "src/common/utils/slug.util";
+import {
+  CreatePackageDto,
+  IncludedServiceDto,
+  PackageFilterDto,
+  UpdatePackageDto,
+} from "./dto";
 
 const PACKAGE_INCLUDE = {
-  packageServices: { include: { service: { select: { id: true, name: true, basePrice: true, estimatedDurationMin: true } } } },
+  packageServices: {
+    include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          basePrice: true,
+          estimatedDurationMin: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.ServicePackageInclude;
 
-type PackageWithServices = Prisma.ServicePackageGetPayload<{ include: typeof PACKAGE_INCLUDE }>;
+type PackageWithServices = Prisma.ServicePackageGetPayload<{
+  include: typeof PACKAGE_INCLUDE;
+}>;
 
 @Injectable()
 export class ServicePackagesService {
@@ -29,17 +52,27 @@ export class ServicePackagesService {
   async create(dto: CreatePackageDto, actorId: string) {
     await this.assertServices(dto.services);
     const slug = await uniqueSlug(dto.name, (s) =>
-      this.prisma.servicePackage.findUnique({ where: { slug: s } }).then(Boolean),
+      this.prisma.servicePackage
+        .findUnique({ where: { slug: s } })
+        .then(Boolean),
     );
     const created = await this.prisma.$transaction(async (tx) => {
       const pkg = await tx.servicePackage.create({
         data: {
-          name: dto.name, slug, description: dto.description, price: dto.price,
-          currency: dto.currency ?? 'INR', isActive: dto.isActive ?? true,
+          name: dto.name,
+          slug,
+          description: dto.description,
+          price: dto.price,
+          currency: dto.currency ?? "INR",
+          isActive: dto.isActive ?? true,
         },
       });
       await tx.packageService.createMany({
-        data: dto.services.map((s) => ({ packageId: pkg.id, serviceId: s.serviceId, quantity: s.quantity })),
+        data: dto.services.map((s) => ({
+          packageId: pkg.id,
+          serviceId: s.serviceId,
+          quantity: s.quantity,
+        })),
       });
       return pkg.id;
     });
@@ -54,22 +87,45 @@ export class ServicePackagesService {
     await this.prisma.$transaction(async (tx) => {
       await tx.servicePackage.update({
         where: { id },
-        data: { name: dto.name, description: dto.description, price: dto.price, currency: dto.currency, isActive: dto.isActive },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          price: dto.price,
+          currency: dto.currency,
+          isActive: dto.isActive,
+        },
       });
       if (dto.services) {
         await tx.packageService.deleteMany({ where: { packageId: id } });
         await tx.packageService.createMany({
-          data: dto.services.map((s) => ({ packageId: id, serviceId: s.serviceId, quantity: s.quantity })),
+          data: dto.services.map((s) => ({
+            packageId: id,
+            serviceId: s.serviceId,
+            quantity: s.quantity,
+          })),
         });
       }
     });
 
-    if (dto.price !== undefined && Number(current.price) !== Number(dto.price)) {
+    if (
+      dto.price !== undefined &&
+      Number(current.price) !== Number(dto.price)
+    ) {
       await this.prisma.auditLog.create({
-        data: { actorId, action: 'package.price_changed', entityType: 'service_package', entityId: id,
-          metadata: { oldPrice: Number(current.price), newPrice: Number(dto.price) } },
+        data: {
+          actorId,
+          action: "package.price_changed",
+          entityType: "service_package",
+          entityId: id,
+          metadata: {
+            oldPrice: Number(current.price),
+            newPrice: Number(dto.price),
+          },
+        },
       });
-      this.logger.warn(`Package ${id} price ${current.price} → ${dto.price} by ${actorId}`);
+      this.logger.warn(
+        `Package ${id} price ${current.price} → ${dto.price} by ${actorId}`,
+      );
     }
     this.logger.log(`Package updated: ${id} by ${actorId}`);
     return this.findOne(id);
@@ -77,21 +133,36 @@ export class ServicePackagesService {
 
   async setActive(id: string, isActive: boolean, actorId: string) {
     await this.ensure(id);
-    await this.prisma.servicePackage.update({ where: { id }, data: { isActive } });
-    this.logger.log(`Package ${id} ${isActive ? 'activated' : 'deactivated'} by ${actorId}`);
+    await this.prisma.servicePackage.update({
+      where: { id },
+      data: { isActive },
+    });
+    this.logger.log(
+      `Package ${id} ${isActive ? "activated" : "deactivated"} by ${actorId}`,
+    );
     return this.findOne(id);
   }
 
   async remove(id: string, actorId: string) {
     await this.ensure(id);
-    await this.prisma.servicePackage.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    await this.prisma.servicePackage.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
     this.logger.warn(`Package soft-deleted: ${id} by ${actorId}`);
     return { success: true };
   }
 
   async findOne(id: string) {
-    const pkg = await this.prisma.servicePackage.findFirst({ where: { id, deletedAt: null }, include: PACKAGE_INCLUDE });
-    if (!pkg) throw new NotFoundException({ code: 'PACKAGE_NOT_FOUND', message: 'Package not found' });
+    const pkg = await this.prisma.servicePackage.findFirst({
+      where: { id, deletedAt: null },
+      include: PACKAGE_INCLUDE,
+    });
+    if (!pkg)
+      throw new NotFoundException({
+        code: "PACKAGE_NOT_FOUND",
+        message: "Package not found",
+      });
     return this.toResponse(pkg);
   }
 
@@ -99,39 +170,69 @@ export class ServicePackagesService {
     const where: Prisma.ServicePackageWhereInput = {
       deletedAt: null,
       ...(filter.isActive !== undefined ? { isActive: filter.isActive } : {}),
-      ...(filter.search ? { name: { contains: filter.search, mode: 'insensitive' } } : {}),
+      ...(filter.search
+        ? { name: { contains: filter.search, mode: "insensitive" } }
+        : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.servicePackage.findMany({
-        where, include: PACKAGE_INCLUDE,
-        orderBy: { [filter.sort ?? 'createdAt']: filter.order }, skip: filter.skip, take: filter.limit,
+        where,
+        include: PACKAGE_INCLUDE,
+        orderBy: { [filter.sort ?? "createdAt"]: filter.order },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.servicePackage.count({ where }),
     ]);
-    return paginate(rows.map((r) => this.toResponse(r)), total, filter.page, filter.limit);
+    return paginate(
+      rows.map((r) => this.toResponse(r)),
+      total,
+      filter.page,
+      filter.limit,
+    );
   }
 
   // ---- helpers ----
   private async ensure(id: string) {
-    const p = await this.prisma.servicePackage.findFirst({ where: { id, deletedAt: null } });
-    if (!p) throw new NotFoundException({ code: 'PACKAGE_NOT_FOUND', message: 'Package not found' });
+    const p = await this.prisma.servicePackage.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!p)
+      throw new NotFoundException({
+        code: "PACKAGE_NOT_FOUND",
+        message: "Package not found",
+      });
     return p;
   }
 
   private async assertServices(services: IncludedServiceDto[]) {
     const ids = [...new Set(services.map((s) => s.serviceId))];
-    const found = await this.prisma.service.count({ where: { id: { in: ids }, deletedAt: null } });
+    const found = await this.prisma.service.count({
+      where: { id: { in: ids }, deletedAt: null },
+    });
     if (found !== ids.length) {
-      throw new BadRequestException({ code: 'SERVICE_NOT_FOUND', message: 'One or more included services do not exist' });
+      throw new BadRequestException({
+        code: "SERVICE_NOT_FOUND",
+        message: "One or more included services do not exist",
+      });
     }
   }
 
   // Compose the response with derived discount % and total duration.
   private toResponse(pkg: PackageWithServices) {
-    const baseTotal = pkg.packageServices.reduce((sum, ps) => sum + Number(ps.service.basePrice) * ps.quantity, 0);
-    const totalDuration = pkg.packageServices.reduce((sum, ps) => sum + ps.service.estimatedDurationMin * ps.quantity, 0);
+    const baseTotal = pkg.packageServices.reduce(
+      (sum, ps) => sum + Number(ps.service.basePrice) * ps.quantity,
+      0,
+    );
+    const totalDuration = pkg.packageServices.reduce(
+      (sum, ps) => sum + ps.service.estimatedDurationMin * ps.quantity,
+      0,
+    );
     const price = Number(pkg.price);
-    const discountPercentage = baseTotal > 0 ? Math.max(0, Math.round((1 - price / baseTotal) * 100)) : 0;
+    const discountPercentage =
+      baseTotal > 0
+        ? Math.max(0, Math.round((1 - price / baseTotal) * 100))
+        : 0;
     return {
       id: pkg.id,
       name: pkg.name,

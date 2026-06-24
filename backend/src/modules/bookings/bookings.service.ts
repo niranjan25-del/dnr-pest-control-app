@@ -9,34 +9,64 @@
 // creation. A human-readable booking_number is derived (display-only) for responses.
 
 import {
-  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
-} from '@nestjs/common';
-import { BookingPriority, BookingStatus, Prisma, UserRole } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { AvailabilityService } from './availability.service';
-import { BookingStatusService } from './booking-status.service';
-import { ServiceAreasService } from '../service-areas/service-areas.service';
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import {
-  BookingFilterDto, CancelBookingDto, CreateBookingDto, RescheduleBookingDto, UpdateBookingDto,
+  BookingPriority,
+  BookingStatus,
+  Prisma,
+  UserRole,
+} from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { AvailabilityService } from "./availability.service";
+import { BookingStatusService } from "./booking-status.service";
+import { ServiceAreasService } from "../service-areas/service-areas.service";
+import {
+  BookingFilterDto,
+  CancelBookingDto,
+  CreateBookingDto,
+  RescheduleBookingDto,
+  UpdateBookingDto,
   UpdateBookingStatusDto,
-} from './dto';
+} from "./dto";
 import {
-  ACTIVE_STATUSES, CANCELLABLE_BY_CUSTOMER, TECHNICIAN_SETTABLE, formatBookingNumber,
-} from './enums';
+  ACTIVE_STATUSES,
+  CANCELLABLE_BY_CUSTOMER,
+  TECHNICIAN_SETTABLE,
+  formatBookingNumber,
+} from "./enums";
 
 const BOOKING_INCLUDE = {
-  service: { select: { id: true, name: true, basePrice: true, estimatedDurationMin: true } },
+  service: {
+    select: {
+      id: true,
+      name: true,
+      basePrice: true,
+      estimatedDurationMin: true,
+    },
+  },
   package: { select: { id: true, name: true, price: true } },
   address: true,
-  customer: { select: { id: true, user: { select: { id: true, fullName: true, email: true, phone: true } } } },
+  customer: {
+    select: {
+      id: true,
+      user: { select: { id: true, fullName: true, email: true, phone: true } },
+    },
+  },
   assignments: {
-    where: { status: { not: 'CANCELLED' as const } },
-    orderBy: { createdAt: 'desc' as const },
+    where: { status: { not: "CANCELLED" as const } },
+    orderBy: { createdAt: "desc" as const },
     take: 1,
     select: {
-      id: true, technicianId: true, status: true,
+      id: true,
+      technicianId: true,
+      status: true,
       technician: { select: { user: { select: { fullName: true } } } },
     },
   },
@@ -45,14 +75,22 @@ const BOOKING_INCLUDE = {
 const BOOKING_DETAIL_INCLUDE = {
   ...BOOKING_INCLUDE,
   statusHistory: {
-    orderBy: { createdAt: 'asc' as const },
-    select: { id: true, previousStatus: true, newStatus: true, note: true, createdAt: true },
+    orderBy: { createdAt: "asc" as const },
+    select: {
+      id: true,
+      previousStatus: true,
+      newStatus: true,
+      note: true,
+      createdAt: true,
+    },
   },
   review: { select: { id: true, deletedAt: true } },
 } satisfies Prisma.BookingInclude;
 
 type BookingRow = Prisma.BookingGetPayload<{ include: typeof BOOKING_INCLUDE }>;
-type BookingDetailRow = Prisma.BookingGetPayload<{ include: typeof BOOKING_DETAIL_INCLUDE }>;
+type BookingDetailRow = Prisma.BookingGetPayload<{
+  include: typeof BOOKING_DETAIL_INCLUDE;
+}>;
 
 @Injectable()
 export class BookingsService {
@@ -68,23 +106,33 @@ export class BookingsService {
   // ---------- Create ----------
   async create(actor: AuthenticatedUser, dto: CreateBookingDto) {
     if (!dto.serviceId && !dto.packageId) {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'A service or package is required' });
+      throw new BadRequestException({
+        code: "VALIDATION_ERROR",
+        message: "A service or package is required",
+      });
     }
 
     const customerId = await this.resolveCustomerId(actor, dto.customerId);
 
     // Validate address ownership.
     const address = await this.prisma.address.findFirst({
-      where: { id: dto.addressId, customerId, deletedAt: null }, select: { id: true, postalCode: true },
+      where: { id: dto.addressId, customerId, deletedAt: null },
+      select: { id: true, postalCode: true },
     });
-    if (!address) throw new BadRequestException({ code: 'ADDRESS_NOT_FOUND', message: 'Address not found for this customer' });
+    if (!address)
+      throw new BadRequestException({
+        code: "ADDRESS_NOT_FOUND",
+        message: "Address not found for this customer",
+      });
 
     // Enforce service area coverage for customers (admins may override).
     if (actor.role !== UserRole.ADMIN && address.postalCode) {
-      const coverage = await this.serviceAreas.checkCoverage(address.postalCode);
+      const coverage = await this.serviceAreas.checkCoverage(
+        address.postalCode,
+      );
       if (!coverage.covered) {
         throw new BadRequestException({
-          code: 'AREA_NOT_COVERED',
+          code: "AREA_NOT_COVERED",
           message: `We don't currently service postal code ${address.postalCode}. Please contact us or use a different address.`,
         });
       }
@@ -94,30 +142,51 @@ export class BookingsService {
     const { price, durationMin } = await this.resolvePricing(dto);
 
     const isAdmin = actor.role === UserRole.ADMIN;
-    const window = this.availability.resolveWindow(dto.scheduledStart, durationMin, isAdmin);
+    const window = this.availability.resolveWindow(
+      dto.scheduledStart,
+      durationMin,
+      isAdmin,
+    );
     if (!isAdmin) await this.availability.assertSlotAvailable(window);
 
     const created = await this.prisma.$transaction(async (tx) => {
       const booking = await tx.booking.create({
         data: {
-          customerId, serviceId: dto.serviceId, packageId: dto.packageId, addressId: dto.addressId,
-          status: BookingStatus.PENDING, scheduledWindowStart: window.start, scheduledWindowEnd: window.end,
-          price, currency: 'INR', notes: dto.notes,
+          customerId,
+          serviceId: dto.serviceId,
+          packageId: dto.packageId,
+          addressId: dto.addressId,
+          status: BookingStatus.PENDING,
+          scheduledWindowStart: window.start,
+          scheduledWindowEnd: window.end,
+          price,
+          currency: "INR",
+          notes: dto.notes,
           priority: dto.priority ?? BookingPriority.NORMAL,
         },
       });
       await tx.bookingStatusHistory.create({
-        data: { bookingId: booking.id, previousStatus: null, newStatus: BookingStatus.PENDING, changedById: actor.id },
+        data: {
+          bookingId: booking.id,
+          previousStatus: null,
+          newStatus: BookingStatus.PENDING,
+          changedById: actor.id,
+        },
       });
       // Attach uploaded images via the MediaFile polymorphic owner.
       if (dto.imageMediaIds?.length) {
         await tx.mediaFile.updateMany({
           where: { id: { in: dto.imageMediaIds } },
-          data: { ownerType: 'booking', ownerId: booking.id },
+          data: { ownerType: "booking", ownerId: booking.id },
         });
       }
       await tx.auditLog.create({
-        data: { actorId: actor.id, action: 'booking.created', entityType: 'booking', entityId: booking.id },
+        data: {
+          actorId: actor.id,
+          action: "booking.created",
+          entityType: "booking",
+          entityId: booking.id,
+        },
       });
       return booking.id;
     });
@@ -132,7 +201,11 @@ export class BookingsService {
       where: { id, deletedAt: null, ...(await this.scope(actor)) },
       include: BOOKING_DETAIL_INCLUDE,
     });
-    if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
+    if (!booking)
+      throw new NotFoundException({
+        code: "BOOKING_NOT_FOUND",
+        message: "Booking not found",
+      });
     return this.toResponse(booking);
   }
 
@@ -142,25 +215,51 @@ export class BookingsService {
       ...(await this.scope(actor)),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.serviceId ? { serviceId: filter.serviceId } : {}),
-      ...(filter.categoryId ? { service: { categoryId: filter.categoryId } } : {}),
-      ...(filter.technicianId ? { assignments: { some: { technicianId: filter.technicianId } } } : {}),
-      ...(filter.customer_id ? { customer: { userId: filter.customer_id } } : {}),
-      ...(this.dateRange(filter.dateFrom, filter.dateTo)),
+      ...(filter.categoryId
+        ? { service: { categoryId: filter.categoryId } }
+        : {}),
+      ...(filter.technicianId
+        ? { assignments: { some: { technicianId: filter.technicianId } } }
+        : {}),
+      ...(filter.customer_id
+        ? { customer: { userId: filter.customer_id } }
+        : {}),
+      ...this.dateRange(filter.dateFrom, filter.dateTo),
       ...(filter.search
-        ? { customer: { user: { OR: [
-            { fullName: { contains: filter.search, mode: 'insensitive' } },
-            { email: { contains: filter.search, mode: 'insensitive' } },
-          ] } } }
+        ? {
+            customer: {
+              user: {
+                OR: [
+                  {
+                    fullName: { contains: filter.search, mode: "insensitive" },
+                  },
+                  { email: { contains: filter.search, mode: "insensitive" } },
+                ],
+              },
+            },
+          }
         : {}),
     };
-    const sort = filter.sort === 'scheduledWindowStart' || filter.sort === 'createdAt' ? filter.sort : 'scheduledWindowStart';
+    const sort =
+      filter.sort === "scheduledWindowStart" || filter.sort === "createdAt"
+        ? filter.sort
+        : "scheduledWindowStart";
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
-        where, include: BOOKING_INCLUDE, orderBy: { [sort]: filter.order }, skip: filter.skip, take: filter.limit,
+        where,
+        include: BOOKING_INCLUDE,
+        orderBy: { [sort]: filter.order },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.booking.count({ where }),
     ]);
-    return paginate(rows.map((r) => this.toResponse(r)), total, filter.page, filter.limit);
+    return paginate(
+      rows.map((r) => this.toResponse(r)),
+      total,
+      filter.page,
+      filter.limit,
+    );
   }
 
   // ---------- Update (notes; admin may change address) ----------
@@ -168,14 +267,23 @@ export class BookingsService {
     const booking = await this.requireAccessible(id, actor);
     const isAdmin = actor.role === UserRole.ADMIN;
     if (!isAdmin && !ACTIVE_STATUSES.includes(booking.status)) {
-      throw new BadRequestException({ code: 'INVALID_BOOKING_STATUS', message: 'This booking can no longer be edited' });
+      throw new BadRequestException({
+        code: "INVALID_BOOKING_STATUS",
+        message: "This booking can no longer be edited",
+      });
     }
     if (dto.addressId && !isAdmin) {
-      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Only an admin can change the address' });
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "Only an admin can change the address",
+      });
     }
     const updated = await this.prisma.booking.update({
       where: { id },
-      data: { notes: dto.notes, ...(dto.addressId ? { addressId: dto.addressId } : {}) },
+      data: {
+        notes: dto.notes,
+        ...(dto.addressId ? { addressId: dto.addressId } : {}),
+      },
       include: BOOKING_INCLUDE,
     });
     this.logger.log(`Booking ${id} updated by ${actor.id}`);
@@ -183,35 +291,62 @@ export class BookingsService {
   }
 
   // ---------- Reschedule ----------
-  async reschedule(id: string, actor: AuthenticatedUser, dto: RescheduleBookingDto) {
+  async reschedule(
+    id: string,
+    actor: AuthenticatedUser,
+    dto: RescheduleBookingDto,
+  ) {
     const booking = await this.requireAccessible(id, actor);
-    if (actor.role !== UserRole.ADMIN && !CANCELLABLE_BY_CUSTOMER.includes(booking.status)) {
-      throw new BadRequestException({ code: 'INVALID_BOOKING_STATUS', message: `Cannot reschedule a ${booking.status} booking` });
+    if (
+      actor.role !== UserRole.ADMIN &&
+      !CANCELLABLE_BY_CUSTOMER.includes(booking.status)
+    ) {
+      throw new BadRequestException({
+        code: "INVALID_BOOKING_STATUS",
+        message: `Cannot reschedule a ${booking.status} booking`,
+      });
     }
     const durationMin = Math.max(
       30,
-      Math.round((booking.scheduledWindowEnd.getTime() - booking.scheduledWindowStart.getTime()) / 60_000),
+      Math.round(
+        (booking.scheduledWindowEnd.getTime() -
+          booking.scheduledWindowStart.getTime()) /
+          60_000,
+      ),
     );
-    const window = this.availability.resolveWindow(dto.scheduledStart, durationMin);
+    const window = this.availability.resolveWindow(
+      dto.scheduledStart,
+      durationMin,
+    );
     await this.availability.assertSlotAvailable(window, id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const b = await tx.booking.update({
         where: { id },
-        data: { scheduledWindowStart: window.start, scheduledWindowEnd: window.end },
+        data: {
+          scheduledWindowStart: window.start,
+          scheduledWindowEnd: window.end,
+        },
         include: BOOKING_INCLUDE,
       });
       // Reschedule is recorded in history as a note (no RESCHEDULED status in the schema).
       await tx.bookingStatusHistory.create({
         data: {
-          bookingId: id, previousStatus: booking.status, newStatus: booking.status,
-          note: `Rescheduled to ${window.start.toISOString()}${dto.reason ? ` — ${dto.reason}` : ''}`,
+          bookingId: id,
+          previousStatus: booking.status,
+          newStatus: booking.status,
+          note: `Rescheduled to ${window.start.toISOString()}${dto.reason ? ` — ${dto.reason}` : ""}`,
           changedById: actor.id,
         },
       });
       await tx.auditLog.create({
-        data: { actorId: actor.id, action: 'booking.rescheduled', entityType: 'booking', entityId: id,
-          metadata: { start: window.start.toISOString(), reason: dto.reason } },
+        data: {
+          actorId: actor.id,
+          action: "booking.rescheduled",
+          entityType: "booking",
+          entityId: id,
+          metadata: { start: window.start.toISOString(), reason: dto.reason },
+        },
       });
       return b;
     });
@@ -224,43 +359,75 @@ export class BookingsService {
     const booking = await this.requireAccessible(id, actor);
     const isAdmin = actor.role === UserRole.ADMIN;
     if (!isAdmin && !CANCELLABLE_BY_CUSTOMER.includes(booking.status)) {
-      throw new BadRequestException({ code: 'INVALID_BOOKING_STATUS', message: `Cannot cancel a ${booking.status} booking` });
+      throw new BadRequestException({
+        code: "INVALID_BOOKING_STATUS",
+        message: `Cannot cancel a ${booking.status} booking`,
+      });
     }
     // Late-cancellation fee if within 24h of the scheduled start.
-    const feeApplied = booking.scheduledWindowStart.getTime() - Date.now() < 24 * 3600_000;
+    const feeApplied =
+      booking.scheduledWindowStart.getTime() - Date.now() < 24 * 3600_000;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.status.transition(tx, {
-        bookingId: id, current: booking.status, next: BookingStatus.CANCELLED,
-        changedById: actor.id, note: dto.reason,
+        bookingId: id,
+        current: booking.status,
+        next: BookingStatus.CANCELLED,
+        changedById: actor.id,
+        note: dto.reason,
       });
       return tx.booking.update({
         where: { id },
-        data: { cancellationReason: dto.reason, cancellationFeeApplied: feeApplied },
+        data: {
+          cancellationReason: dto.reason,
+          cancellationFeeApplied: feeApplied,
+        },
         include: BOOKING_INCLUDE,
       });
     });
-    this.logger.warn(`Booking ${id} cancelled by ${actor.id} (fee=${feeApplied})`);
+    this.logger.warn(
+      `Booking ${id} cancelled by ${actor.id} (fee=${feeApplied})`,
+    );
     return this.toResponse(updated);
   }
 
   // ---------- Status change (technician on assigned; admin any valid) ----------
-  async changeStatus(id: string, actor: AuthenticatedUser, dto: UpdateBookingStatusDto) {
+  async changeStatus(
+    id: string,
+    actor: AuthenticatedUser,
+    dto: UpdateBookingStatusDto,
+  ) {
     const booking = await this.requireAccessible(id, actor);
-    if (actor.role === UserRole.TECHNICIAN && !TECHNICIAN_SETTABLE.includes(dto.status)) {
-      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Technicians cannot set this status' });
+    if (
+      actor.role === UserRole.TECHNICIAN &&
+      !TECHNICIAN_SETTABLE.includes(dto.status)
+    ) {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "Technicians cannot set this status",
+      });
     }
     if (actor.role === UserRole.CUSTOMER) {
-      throw new ForbiddenException({ code: 'FORBIDDEN', message: 'Use cancel/reschedule instead' });
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "Use cancel/reschedule instead",
+      });
     }
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.status.transition(tx, {
-        bookingId: id, current: booking.status, next: dto.status, changedById: actor.id, note: dto.note,
+        bookingId: id,
+        current: booking.status,
+        next: dto.status,
+        changedById: actor.id,
+        note: dto.note,
       });
       if (dto.status === BookingStatus.COMPLETED) {
         await this.createWarrantyIfApplicable(tx, booking);
       }
-      return tx.booking.findUniqueOrThrow({ where: { id }, include: BOOKING_INCLUDE });
+      return tx.booking.findUniqueOrThrow({
+        where: { id },
+        include: BOOKING_INCLUDE,
+      });
     });
     return this.toResponse(updated);
   }
@@ -269,15 +436,26 @@ export class BookingsService {
   async customerHistory(actor: AuthenticatedUser, filter: BookingFilterDto) {
     const customerId = await this.resolveCustomerId(actor);
     const where: Prisma.BookingWhereInput = {
-      deletedAt: null, customerId, ...(filter.status ? { status: filter.status } : {}),
+      deletedAt: null,
+      customerId,
+      ...(filter.status ? { status: filter.status } : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
-        where, include: BOOKING_INCLUDE, orderBy: { scheduledWindowStart: 'desc' }, skip: filter.skip, take: filter.limit,
+        where,
+        include: BOOKING_INCLUDE,
+        orderBy: { scheduledWindowStart: "desc" },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.booking.count({ where }),
     ]);
-    return paginate(rows.map((r) => this.toResponse(r)), total, filter.page, filter.limit);
+    return paginate(
+      rows.map((r) => this.toResponse(r)),
+      total,
+      filter.page,
+      filter.limit,
+    );
   }
 
   // ---------- Technician schedule ----------
@@ -287,15 +465,24 @@ export class BookingsService {
       deletedAt: null,
       assignments: { some: { technicianId } },
       ...(filter.status ? { status: filter.status } : {}),
-      ...(this.dateRange(filter.dateFrom, filter.dateTo)),
+      ...this.dateRange(filter.dateFrom, filter.dateTo),
     };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
-        where, include: BOOKING_INCLUDE, orderBy: { scheduledWindowStart: 'asc' }, skip: filter.skip, take: filter.limit,
+        where,
+        include: BOOKING_INCLUDE,
+        orderBy: { scheduledWindowStart: "asc" },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.booking.count({ where }),
     ]);
-    return paginate(rows.map((r) => this.toResponse(r)), total, filter.page, filter.limit);
+    return paginate(
+      rows.map((r) => this.toResponse(r)),
+      total,
+      filter.page,
+      filter.limit,
+    );
   }
 
   // ================= helpers =================
@@ -311,59 +498,105 @@ export class BookingsService {
   }
 
   /** Role-based row filter. */
-  private async scope(actor: AuthenticatedUser): Promise<Prisma.BookingWhereInput> {
+  private async scope(
+    actor: AuthenticatedUser,
+  ): Promise<Prisma.BookingWhereInput> {
     if (actor.role === UserRole.ADMIN) return {};
-    if (actor.role === UserRole.CUSTOMER) return { customerId: await this.resolveCustomerId(actor) };
+    if (actor.role === UserRole.CUSTOMER)
+      return { customerId: await this.resolveCustomerId(actor) };
     if (actor.role === UserRole.TECHNICIAN) {
-      return { assignments: { some: { technicianId: await this.resolveTechnicianId(actor) } } };
+      return {
+        assignments: {
+          some: { technicianId: await this.resolveTechnicianId(actor) },
+        },
+      };
     }
-    return { id: '00000000-0000-0000-0000-000000000000' }; // deny by default
+    return { id: "00000000-0000-0000-0000-000000000000" }; // deny by default
   }
 
   private async requireAccessible(id: string, actor: AuthenticatedUser) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, deletedAt: null, ...(await this.scope(actor)) },
     });
-    if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
+    if (!booking)
+      throw new NotFoundException({
+        code: "BOOKING_NOT_FOUND",
+        message: "Booking not found",
+      });
     return booking;
   }
 
-  private async resolveCustomerId(actor: AuthenticatedUser, override?: string): Promise<string> {
+  private async resolveCustomerId(
+    actor: AuthenticatedUser,
+    override?: string,
+  ): Promise<string> {
     if (actor.role === UserRole.ADMIN && override) return override;
     const profile = await this.prisma.customerProfile.findUnique({
-      where: { userId: actor.id }, select: { id: true },
+      where: { userId: actor.id },
+      select: { id: true },
     });
-    if (!profile) throw new BadRequestException({ code: 'PROFILE_NOT_FOUND', message: 'Customer profile required to book' });
+    if (!profile)
+      throw new BadRequestException({
+        code: "PROFILE_NOT_FOUND",
+        message: "Customer profile required to book",
+      });
     return profile.id;
   }
 
   private async resolveTechnicianId(actor: AuthenticatedUser): Promise<string> {
     const profile = await this.prisma.technicianProfile.findUnique({
-      where: { userId: actor.id }, select: { id: true },
+      where: { userId: actor.id },
+      select: { id: true },
     });
-    if (!profile) throw new BadRequestException({ code: 'PROFILE_NOT_FOUND', message: 'Technician profile not found' });
+    if (!profile)
+      throw new BadRequestException({
+        code: "PROFILE_NOT_FOUND",
+        message: "Technician profile not found",
+      });
     return profile.id;
   }
 
-  private async resolvePricing(dto: CreateBookingDto): Promise<{ price: number; durationMin: number }> {
+  private async resolvePricing(
+    dto: CreateBookingDto,
+  ): Promise<{ price: number; durationMin: number }> {
     const prioritySurcharge = dto.priority === BookingPriority.HIGH ? 1.05 : 1;
 
     if (dto.packageId) {
       const pkg = await this.prisma.servicePackage.findFirst({
         where: { id: dto.packageId, deletedAt: null, isActive: true },
-        include: { packageServices: { include: { service: { select: { estimatedDurationMin: true } } } } },
+        include: {
+          packageServices: {
+            include: { service: { select: { estimatedDurationMin: true } } },
+          },
+        },
       });
-      if (!pkg) throw new BadRequestException({ code: 'SERVICE_UNAVAILABLE', message: 'Package is unavailable' });
-      const durationMin = pkg.packageServices.reduce((s, ps) => s + ps.service.estimatedDurationMin * ps.quantity, 0) || 60;
-      return { price: Math.round(Number(pkg.price) * prioritySurcharge * 100) / 100, durationMin };
+      if (!pkg)
+        throw new BadRequestException({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Package is unavailable",
+        });
+      const durationMin =
+        pkg.packageServices.reduce(
+          (s, ps) => s + ps.service.estimatedDurationMin * ps.quantity,
+          0,
+        ) || 60;
+      return {
+        price: Math.round(Number(pkg.price) * prioritySurcharge * 100) / 100,
+        durationMin,
+      };
     }
     const service = await this.prisma.service.findFirst({
       where: { id: dto.serviceId!, deletedAt: null, isActive: true },
       select: { basePrice: true, estimatedDurationMin: true },
     });
-    if (!service) throw new BadRequestException({ code: 'SERVICE_UNAVAILABLE', message: 'Service is unavailable' });
+    if (!service)
+      throw new BadRequestException({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Service is unavailable",
+      });
     return {
-      price: Math.round(Number(service.basePrice) * prioritySurcharge * 100) / 100,
+      price:
+        Math.round(Number(service.basePrice) * prioritySurcharge * 100) / 100,
       durationMin: service.estimatedDurationMin,
     };
   }
@@ -389,7 +622,9 @@ export class BookingsService {
       customer_phone: b.customer?.user?.phone ?? null,
       technician_name: activeAssignment?.technician?.user?.fullName ?? null,
       address_line: b.address
-        ? [b.address.line1, b.address.line2, b.address.city, b.address.state].filter(Boolean).join(', ')
+        ? [b.address.line1, b.address.line2, b.address.city, b.address.state]
+            .filter(Boolean)
+            .join(", ")
         : null,
       access_notes: b.address?.accessNotes ?? null,
       needs_acceptance: b.status === BookingStatus.PENDING,
@@ -417,7 +652,10 @@ export class BookingsService {
           }
         : null,
       technician: activeAssignment
-        ? { id: activeAssignment.technicianId, full_name: activeAssignment.technician?.user?.fullName ?? null }
+        ? {
+            id: activeAssignment.technicianId,
+            full_name: activeAssignment.technician?.user?.fullName ?? null,
+          }
         : null,
       assignments: b.assignments,
       status_history: (b as BookingDetailRow).statusHistory?.map((h) => ({
@@ -427,7 +665,10 @@ export class BookingsService {
         note: h.note,
         created_at: h.createdAt,
       })),
-      has_review: Boolean((b as BookingDetailRow).review && !(b as BookingDetailRow).review?.deletedAt),
+      has_review: Boolean(
+        (b as BookingDetailRow).review &&
+        !(b as BookingDetailRow).review?.deletedAt,
+      ),
       priority: b.priority,
       created_at: b.createdAt,
       updated_at: b.updatedAt,
@@ -448,7 +689,12 @@ export class BookingsService {
     expiresAt.setDate(expiresAt.getDate() + service.warrantyDays);
     await tx.serviceWarranty.upsert({
       where: { bookingId: booking.id },
-      create: { bookingId: booking.id, serviceName: service.name, warrantyDays: service.warrantyDays, expiresAt },
+      create: {
+        bookingId: booking.id,
+        serviceName: service.name,
+        warrantyDays: service.warrantyDays,
+        expiresAt,
+      },
       update: { expiresAt, isActive: true },
     });
   }

@@ -8,32 +8,34 @@
 // route playback). Multi-instance correctness requires moving session state to Redis (flagged).
 
 export enum TechnicianTrackingStatus {
-  OFFLINE = 'OFFLINE',
-  AVAILABLE = 'AVAILABLE',
-  TRAVELING = 'TRAVELING',
-  ARRIVED = 'ARRIVED',
-  WORKING = 'WORKING',
-  COMPLETED = 'COMPLETED',
+  OFFLINE = "OFFLINE",
+  AVAILABLE = "AVAILABLE",
+  TRAVELING = "TRAVELING",
+  ARRIVED = "ARRIVED",
+  WORKING = "WORKING",
+  COMPLETED = "COMPLETED",
 }
 
-export const LOCATION_NAMESPACE = '/location';
+export const LOCATION_NAMESPACE = "/location";
 
 export const LocationEvent = {
-  LOCATION_UPDATE: 'location:update',
-  ONLINE: 'technician:online',
-  OFFLINE: 'technician:offline',
-  ARRIVED: 'technician:arrived',
-  WORKING: 'technician:working',
-  COMPLETED: 'technician:completed',
-  ERROR: 'location:error',
+  LOCATION_UPDATE: "location:update",
+  ONLINE: "technician:online",
+  OFFLINE: "technician:offline",
+  ARRIVED: "technician:arrived",
+  WORKING: "technician:working",
+  COMPLETED: "technician:completed",
+  ERROR: "location:error",
 } as const;
 
-export const roomForBooking = (bookingId: string) => `track:booking:${bookingId}`;
-export const roomForTechnician = (technicianId: string) => `track:tech:${technicianId}`;
+export const roomForBooking = (bookingId: string) =>
+  `track:booking:${bookingId}`;
+export const roomForTechnician = (technicianId: string) =>
+  `track:tech:${technicianId}`;
 
 // Geofence + check-in tolerances (metres).
 export const GEOFENCE_ARRIVAL_RADIUS_M = 150; // proximity that flips tracking status to ARRIVED
-export const CHECK_IN_RADIUS_M = 200;         // max distance allowed to check in at a job
+export const CHECK_IN_RADIUS_M = 200; // max distance allowed to check in at a job
 
 // Fallback ETA when Google Maps isn't configured/available.
 export const FALLBACK_SPEED_KMH = 30;

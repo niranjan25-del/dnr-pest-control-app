@@ -6,19 +6,33 @@
 // here beyond field mapping.
 
 import {
-  Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards,
-} from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
+import { UserRole } from "@prisma/client";
 import {
-  IsBoolean, IsLatitude, IsLongitude, IsNotEmpty, IsOptional, IsString, MaxLength,
-} from 'class-validator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles, CurrentUser } from '../auth/decorators';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { ProfilesService } from '../profiles/profiles.service';
-import { AddressesService } from '../addresses/addresses.service';
-import { UsersService } from '../users/users.service';
+  IsBoolean,
+  IsLatitude,
+  IsLongitude,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles, CurrentUser } from "../auth/decorators";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { ProfilesService } from "../profiles/profiles.service";
+import { AddressesService } from "../addresses/addresses.service";
+import { UsersService } from "../users/users.service";
 
 class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(160) full_name?: string;
@@ -55,7 +69,7 @@ class UpdateAddressDto {
   @IsOptional() @IsBoolean() is_default?: boolean;
 }
 
-@Controller({ path: 'customers', version: '1' })
+@Controller({ path: "customers", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.CUSTOMER)
 export class CustomersController {
@@ -67,31 +81,43 @@ export class CustomersController {
 
   // ----- Profile -----
 
-  @Get('me')
+  @Get("me")
   getProfile(@CurrentUser() actor: AuthenticatedUser) {
     return this.profiles.getCustomerProfile(actor.id);
   }
 
-  @Patch('me')
-  async updateProfile(@CurrentUser() actor: AuthenticatedUser, @Body() dto: UpdateProfileDto) {
+  @Patch("me")
+  async updateProfile(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: UpdateProfileDto,
+  ) {
     if (dto.full_name !== undefined || dto.phone !== undefined) {
-      await this.users.update(actor.id, { fullName: dto.full_name, phone: dto.phone }, actor);
+      await this.users.update(
+        actor.id,
+        { fullName: dto.full_name, phone: dto.phone },
+        actor,
+      );
     }
     if (dto.company_name !== undefined) {
-      await this.profiles.updateCustomerProfile(actor.id, { companyName: dto.company_name });
+      await this.profiles.updateCustomerProfile(actor.id, {
+        companyName: dto.company_name,
+      });
     }
     return this.profiles.getCustomerProfile(actor.id);
   }
 
   // ----- Addresses -----
 
-  @Get('me/addresses')
+  @Get("me/addresses")
   listAddresses(@CurrentUser() actor: AuthenticatedUser) {
     return this.addresses.list(actor);
   }
 
-  @Post('me/addresses')
-  createAddress(@CurrentUser() actor: AuthenticatedUser, @Body() dto: CreateAddressDto) {
+  @Post("me/addresses")
+  createAddress(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: CreateAddressDto,
+  ) {
     return this.addresses.create(actor, {
       label: dto.label,
       line1: dto.line1,
@@ -101,7 +127,9 @@ export class CustomersController {
       postalCode: dto.postal_code,
       country: dto.country,
       accessNotes: dto.gate_code
-        ? [dto.access_notes, `Gate: ${dto.gate_code}`].filter(Boolean).join(' | ')
+        ? [dto.access_notes, `Gate: ${dto.gate_code}`]
+            .filter(Boolean)
+            .join(" | ")
         : dto.access_notes,
       latitude: dto.latitude,
       longitude: dto.longitude,
@@ -109,9 +137,9 @@ export class CustomersController {
     });
   }
 
-  @Patch('me/addresses/:id')
+  @Patch("me/addresses/:id")
   updateAddress(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() actor: AuthenticatedUser,
     @Body() dto: UpdateAddressDto,
   ) {
@@ -130,9 +158,9 @@ export class CustomersController {
     });
   }
 
-  @Delete('me/addresses/:id')
+  @Delete("me/addresses/:id")
   deleteAddress(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.addresses.remove(id, actor);

@@ -17,10 +17,10 @@ export interface Paginated<T> {
 }
 
 export interface ErrorBody {
-  code: string;          // machine-readable, e.g. VALIDATION_ERROR, NOT_FOUND
-  message: string;       // human-readable summary
-  details?: unknown;     // optional field errors / context
-  request_id: string;    // correlates with logs
+  code: string; // machine-readable, e.g. VALIDATION_ERROR, NOT_FOUND
+  message: string; // human-readable summary
+  details?: unknown; // optional field errors / context
+  request_id: string; // correlates with logs
 }
 
 export interface ErrorResponse {

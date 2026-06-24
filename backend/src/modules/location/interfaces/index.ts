@@ -1,6 +1,6 @@
 // src/modules/location/interfaces/index.ts
 
-import { TechnicianTrackingStatus } from '../enums';
+import { TechnicianTrackingStatus } from "../enums";
 
 export interface LivePosition {
   latitude: number;
@@ -21,5 +21,5 @@ export interface EtaResult {
   distance_m: number;
   duration_s: number;
   eta: Date;
-  source: 'google' | 'estimate';
+  source: "google" | "estimate";
 }

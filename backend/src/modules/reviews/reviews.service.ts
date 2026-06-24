@@ -2,20 +2,27 @@
 // Review list + moderation. Admins see all; filtering by status. Status transitions:
 // PENDING → PUBLISHED (visible to users) or HIDDEN (suppressed). FLAGGED marks for follow-up.
 
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ReviewStatus } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { Prisma, ReviewStatus } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { PaginationQueryDto } from "src/common/dto/pagination-query.dto";
+import { IsEnum, IsOptional, IsString } from "class-validator";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
 
 export class ReviewFilterDto extends PaginationQueryDto {
-  @IsOptional() @IsEnum(ReviewStatus)
+  @IsOptional()
+  @IsEnum(ReviewStatus)
   status?: ReviewStatus;
 
   // Admin-only: filter by customer User.id
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   customer_id?: string;
 }
 
@@ -27,14 +34,30 @@ export class ReviewsService {
     const where: Prisma.ReviewWhereInput = {
       deletedAt: null,
       ...(filter.status ? { status: filter.status } : {}),
-      ...(filter.customer_id ? { customer: { userId: filter.customer_id } } : {}),
-      ...(filter.search ? {
-        OR: [
-          { comment: { contains: filter.search, mode: 'insensitive' } },
-          { customer: { user: { fullName: { contains: filter.search, mode: 'insensitive' } } } },
-          { technician: { user: { fullName: { contains: filter.search, mode: 'insensitive' } } } },
-        ],
-      } : {}),
+      ...(filter.customer_id
+        ? { customer: { userId: filter.customer_id } }
+        : {}),
+      ...(filter.search
+        ? {
+            OR: [
+              { comment: { contains: filter.search, mode: "insensitive" } },
+              {
+                customer: {
+                  user: {
+                    fullName: { contains: filter.search, mode: "insensitive" },
+                  },
+                },
+              },
+              {
+                technician: {
+                  user: {
+                    fullName: { contains: filter.search, mode: "insensitive" },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     };
 
     const [rows, total] = await this.prisma.$transaction([
@@ -68,25 +91,48 @@ export class ReviewsService {
     );
   }
 
-  async submitReview(actor: AuthenticatedUser, dto: { booking_id: string; rating: number; comment?: string }) {
-    const cp = await this.prisma.customerProfile.findUnique({ where: { userId: actor.id }, select: { id: true } });
-    if (!cp) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Customer profile not found' });
+  async submitReview(
+    actor: AuthenticatedUser,
+    dto: { booking_id: string; rating: number; comment?: string },
+  ) {
+    const cp = await this.prisma.customerProfile.findUnique({
+      where: { userId: actor.id },
+      select: { id: true },
+    });
+    if (!cp)
+      throw new NotFoundException({
+        code: "PROFILE_NOT_FOUND",
+        message: "Customer profile not found",
+      });
 
     const booking = await this.prisma.booking.findFirst({
       where: { id: dto.booking_id, customerId: cp.id, deletedAt: null },
       select: { id: true, status: true },
     });
-    if (!booking) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' });
-    if (booking.status !== 'COMPLETED') {
-      throw new BadRequestException({ code: 'REVIEW_NOT_ALLOWED', message: 'Reviews can only be submitted for completed bookings' });
+    if (!booking)
+      throw new NotFoundException({
+        code: "BOOKING_NOT_FOUND",
+        message: "Booking not found",
+      });
+    if (booking.status !== "COMPLETED") {
+      throw new BadRequestException({
+        code: "REVIEW_NOT_ALLOWED",
+        message: "Reviews can only be submitted for completed bookings",
+      });
     }
 
-    const existing = await this.prisma.review.findFirst({ where: { bookingId: dto.booking_id } });
-    if (existing) throw new ConflictException({ code: 'REVIEW_EXISTS', message: 'A review already exists for this booking' });
+    const existing = await this.prisma.review.findFirst({
+      where: { bookingId: dto.booking_id },
+    });
+    if (existing)
+      throw new ConflictException({
+        code: "REVIEW_EXISTS",
+        message: "A review already exists for this booking",
+      });
 
     const assignment = await this.prisma.technicianAssignment.findFirst({
       where: { bookingId: dto.booking_id },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       select: { technicianId: true },
     });
 
@@ -102,7 +148,12 @@ export class ReviewsService {
     });
 
     await this.prisma.auditLog.create({
-      data: { actorId: actor.id, action: 'review.submitted', entityType: 'review', entityId: review.id },
+      data: {
+        actorId: actor.id,
+        action: "review.submitted",
+        entityType: "review",
+        entityId: review.id,
+      },
     });
 
     return {
@@ -117,12 +168,27 @@ export class ReviewsService {
   }
 
   async moderate(id: string, actorId: string, status: ReviewStatus) {
-    const review = await this.prisma.review.findUnique({ where: { id }, select: { id: true } });
-    if (!review) throw new NotFoundException({ code: 'REVIEW_NOT_FOUND', message: 'Review not found' });
+    const review = await this.prisma.review.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!review)
+      throw new NotFoundException({
+        code: "REVIEW_NOT_FOUND",
+        message: "Review not found",
+      });
 
-    const updated = await this.prisma.review.update({ where: { id }, data: { status } });
+    const updated = await this.prisma.review.update({
+      where: { id },
+      data: { status },
+    });
     await this.prisma.auditLog.create({
-      data: { actorId, action: `review.${status.toLowerCase()}`, entityType: 'review', entityId: id },
+      data: {
+        actorId,
+        action: `review.${status.toLowerCase()}`,
+        entityType: "review",
+        entityId: id,
+      },
     });
     return { id: updated.id, status: updated.status };
   }

@@ -3,11 +3,11 @@
 // Durable location history (TechnicianLocation rows) — the source for route playback and
 // audits. TechnicianLocation.id is a BigInt; it's serialized to string in responses.
 
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { TrackingFilterDto } from './dto';
+import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { TrackingFilterDto } from "./dto";
 
 @Injectable()
 export class RouteService {
@@ -16,18 +16,30 @@ export class RouteService {
   /** Persist a single location fix. Accepts a tx client so it can join a larger transaction. */
   record(
     client: Prisma.TransactionClient | PrismaService,
-    params: { technicianId: string; bookingId?: string | null; latitude: number; longitude: number; accuracy?: number | null },
+    params: {
+      technicianId: string;
+      bookingId?: string | null;
+      latitude: number;
+      longitude: number;
+      accuracy?: number | null;
+    },
   ) {
     return client.technicianLocation.create({
       data: {
-        technicianId: params.technicianId, bookingId: params.bookingId ?? null,
-        latitude: params.latitude, longitude: params.longitude, accuracy: params.accuracy ?? null,
+        technicianId: params.technicianId,
+        bookingId: params.bookingId ?? null,
+        latitude: params.latitude,
+        longitude: params.longitude,
+        accuracy: params.accuracy ?? null,
       },
     });
   }
 
   async lastKnown(technicianId: string) {
-    const row = await this.prisma.technicianLocation.findFirst({ where: { technicianId }, orderBy: { recordedAt: 'desc' } });
+    const row = await this.prisma.technicianLocation.findFirst({
+      where: { technicianId },
+      orderBy: { recordedAt: "desc" },
+    });
     return row ? this.toView(row) : null;
   }
 
@@ -36,17 +48,40 @@ export class RouteService {
       technicianId,
       ...(filter.bookingId ? { bookingId: filter.bookingId } : {}),
       ...(filter.from || filter.to
-        ? { recordedAt: { ...(filter.from ? { gte: new Date(filter.from) } : {}), ...(filter.to ? { lte: new Date(filter.to) } : {}) } }
+        ? {
+            recordedAt: {
+              ...(filter.from ? { gte: new Date(filter.from) } : {}),
+              ...(filter.to ? { lte: new Date(filter.to) } : {}),
+            },
+          }
         : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
-      this.prisma.technicianLocation.findMany({ where, orderBy: { recordedAt: filter.order }, skip: filter.skip, take: filter.limit }),
+      this.prisma.technicianLocation.findMany({
+        where,
+        orderBy: { recordedAt: filter.order },
+        skip: filter.skip,
+        take: filter.limit,
+      }),
       this.prisma.technicianLocation.count({ where }),
     ]);
-    return paginate(rows.map((r) => this.toView(r)), total, filter.page, filter.limit);
+    return paginate(
+      rows.map((r) => this.toView(r)),
+      total,
+      filter.page,
+      filter.limit,
+    );
   }
 
-  private toView(r: { id: bigint; technicianId: string; bookingId: string | null; latitude: Prisma.Decimal; longitude: Prisma.Decimal; accuracy: Prisma.Decimal | null; recordedAt: Date }) {
+  private toView(r: {
+    id: bigint;
+    technicianId: string;
+    bookingId: string | null;
+    latitude: Prisma.Decimal;
+    longitude: Prisma.Decimal;
+    accuracy: Prisma.Decimal | null;
+    recordedAt: Date;
+  }) {
     return {
       id: r.id.toString(),
       technician_id: r.technicianId,

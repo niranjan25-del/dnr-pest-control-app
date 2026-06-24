@@ -5,14 +5,18 @@
 // Date is stored as UTC midnight for grouping purposes.
 
 import {
-  BadRequestException, Injectable, NotFoundException,
-} from '@nestjs/common';
-import { PrismaService } from 'src/database/prisma.service';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { PrismaService } from "src/database/prisma.service";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
 
 function todayUtc(): Date {
   const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  );
 }
 
 export interface DutyLogRow {
@@ -26,7 +30,9 @@ export interface DutyLogRow {
   note: string | null;
 }
 
-const INCLUDE = { technician: { select: { user: { select: { fullName: true } } } } };
+const INCLUDE = {
+  technician: { select: { user: { select: { fullName: true } } } },
+};
 
 @Injectable()
 export class AttendanceService {
@@ -36,19 +42,30 @@ export class AttendanceService {
 
   private async resolveTechProfile(userId: string) {
     const profile = await this.prisma.technicianProfile.findUnique({
-      where: { userId }, select: { id: true },
+      where: { userId },
+      select: { id: true },
     });
-    if (!profile) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Technician profile not found' });
+    if (!profile)
+      throw new NotFoundException({
+        code: "PROFILE_NOT_FOUND",
+        message: "Technician profile not found",
+      });
     return profile;
   }
 
   private toRow(log: {
-    id: string; technicianId: string; date: Date;
-    punchedInAt: Date; punchedOutAt: Date | null; note: string | null;
+    id: string;
+    technicianId: string;
+    date: Date;
+    punchedInAt: Date;
+    punchedOutAt: Date | null;
+    note: string | null;
     technician: { user: { fullName: string } };
   }): DutyLogRow {
     const durMin = log.punchedOutAt
-      ? Math.round((log.punchedOutAt.getTime() - log.punchedInAt.getTime()) / 60_000)
+      ? Math.round(
+          (log.punchedOutAt.getTime() - log.punchedInAt.getTime()) / 60_000,
+        )
       : null;
     return {
       id: log.id,
@@ -73,12 +90,20 @@ export class AttendanceService {
       where: { technicianId: profile.id, date, punchedOutAt: null },
     });
     if (openSession) {
-      throw new BadRequestException({ code: 'SESSION_OPEN', message: 'Please punch out before punching in again' });
+      throw new BadRequestException({
+        code: "SESSION_OPEN",
+        message: "Please punch out before punching in again",
+      });
     }
 
     const [log] = await this.prisma.$transaction([
       this.prisma.technicianDutyLog.create({
-        data: { technicianId: profile.id, date, punchedInAt: new Date(), note: note ?? null },
+        data: {
+          technicianId: profile.id,
+          date,
+          punchedInAt: new Date(),
+          note: note ?? null,
+        },
         include: INCLUDE,
       }),
       this.prisma.technicianProfile.update({
@@ -96,10 +121,13 @@ export class AttendanceService {
     // Find the latest open session (no punchedOutAt)
     const openSession = await this.prisma.technicianDutyLog.findFirst({
       where: { technicianId: profile.id, date, punchedOutAt: null },
-      orderBy: { punchedInAt: 'desc' },
+      orderBy: { punchedInAt: "desc" },
     });
     if (!openSession) {
-      throw new BadRequestException({ code: 'NO_OPEN_SESSION', message: 'You are not currently punched in' });
+      throw new BadRequestException({
+        code: "NO_OPEN_SESSION",
+        message: "You are not currently punched in",
+      });
     }
 
     const [log] = await this.prisma.$transaction([
@@ -123,20 +151,24 @@ export class AttendanceService {
     // Latest session determines current status
     const latest = await this.prisma.technicianDutyLog.findFirst({
       where: { technicianId: profile.id, date },
-      orderBy: { punchedInAt: 'desc' },
+      orderBy: { punchedInAt: "desc" },
       include: INCLUDE,
     });
 
     // All sessions today for the card display
     const sessions = await this.prisma.technicianDutyLog.findMany({
       where: { technicianId: profile.id, date },
-      orderBy: { punchedInAt: 'asc' },
+      orderBy: { punchedInAt: "asc" },
       include: INCLUDE,
     });
 
-    if (!latest) return { status: 'NOT_PUNCHED_IN', log: null, sessions: [] };
-    const status = latest.punchedOutAt ? 'PUNCHED_OUT' : 'ON_DUTY';
-    return { status, log: this.toRow(latest), sessions: sessions.map((s) => this.toRow(s)) };
+    if (!latest) return { status: "NOT_PUNCHED_IN", log: null, sessions: [] };
+    const status = latest.punchedOutAt ? "PUNCHED_OUT" : "ON_DUTY";
+    return {
+      status,
+      log: this.toRow(latest),
+      sessions: sessions.map((s) => this.toRow(s)),
+    };
   }
 
   // ── admin endpoints ──────────────────────────────────────────────────────────
@@ -149,7 +181,12 @@ export class AttendanceService {
     userId?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ data: DutyLogRow[]; total: number; page: number; limit: number }> {
+  }): Promise<{
+    data: DutyLogRow[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const page = Math.max(1, filter.page ?? 1);
     const limit = Math.min(200, filter.limit ?? 50);
     const skip = (page - 1) * limit;
@@ -157,33 +194,43 @@ export class AttendanceService {
     const where: Record<string, unknown> = {};
 
     if (filter.userId) {
-      where['technician'] = { userId: filter.userId };
+      where["technician"] = { userId: filter.userId };
     } else if (filter.technicianId) {
-      where['technicianId'] = filter.technicianId;
+      where["technicianId"] = filter.technicianId;
     }
 
     if (filter.date) {
       const d = new Date(filter.date);
-      where['date'] = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      where["date"] = new Date(
+        Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+      );
     } else if (filter.from || filter.to) {
       const dateFilter: Record<string, Date> = {};
       if (filter.from) {
         const f = new Date(filter.from);
-        dateFilter['gte'] = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth(), f.getUTCDate()));
+        dateFilter["gte"] = new Date(
+          Date.UTC(f.getUTCFullYear(), f.getUTCMonth(), f.getUTCDate()),
+        );
       }
       if (filter.to) {
         const t = new Date(filter.to);
-        dateFilter['lte'] = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()));
+        dateFilter["lte"] = new Date(
+          Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()),
+        );
       }
-      where['date'] = dateFilter;
+      where["date"] = dateFilter;
     } else if (!filter.userId) {
       // Default to today only when not viewing a specific technician's full history
-      where['date'] = todayUtc();
+      where["date"] = todayUtc();
     }
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.technicianDutyLog.findMany({
-        where, include: INCLUDE, orderBy: [{ date: 'desc' }, { punchedInAt: 'asc' }], skip, take: limit,
+        where,
+        include: INCLUDE,
+        orderBy: [{ date: "desc" }, { punchedInAt: "asc" }],
+        skip,
+        take: limit,
       }),
       this.prisma.technicianDutyLog.count({ where }),
     ]);

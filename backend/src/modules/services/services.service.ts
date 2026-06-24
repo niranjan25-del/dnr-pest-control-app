@@ -4,13 +4,18 @@
 // category/pest-category exist. Price changes (basePrice) are written to AuditLog with the
 // old→new values (explicit "track price changes" requirement); create/update are logged.
 
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { uniqueSlug } from 'src/common/utils/slug.util';
-import { CreateServiceDto, ServiceFilterDto, UpdateServiceDto } from './dto';
-import { SERVICE_SORT_FIELDS, safeSort } from './enums';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { uniqueSlug } from "src/common/utils/slug.util";
+import { CreateServiceDto, ServiceFilterDto, UpdateServiceDto } from "./dto";
+import { SERVICE_SORT_FIELDS, safeSort } from "./enums";
 
 @Injectable()
 export class ServicesService {
@@ -26,10 +31,15 @@ export class ServicesService {
     );
     const service = await this.prisma.service.create({
       data: {
-        name: dto.name, slug, description: dto.description,
-        estimatedDurationMin: dto.estimatedDurationMin, basePrice: dto.basePrice,
-        currency: dto.currency ?? 'INR', categoryId: dto.categoryId,
-        pestCategoryId: dto.pestCategoryId, isActive: dto.isActive ?? true,
+        name: dto.name,
+        slug,
+        description: dto.description,
+        estimatedDurationMin: dto.estimatedDurationMin,
+        basePrice: dto.basePrice,
+        currency: dto.currency ?? "INR",
+        categoryId: dto.categoryId,
+        pestCategoryId: dto.pestCategoryId,
+        isActive: dto.isActive ?? true,
         warrantyDays: dto.warrantyDays,
       },
     });
@@ -45,17 +55,32 @@ export class ServicesService {
     const service = await this.prisma.service.update({
       where: { id },
       data: {
-        name: dto.name, description: dto.description, estimatedDurationMin: dto.estimatedDurationMin,
-        basePrice: dto.basePrice, currency: dto.currency, categoryId: dto.categoryId,
-        pestCategoryId: dto.pestCategoryId, isActive: dto.isActive,
+        name: dto.name,
+        description: dto.description,
+        estimatedDurationMin: dto.estimatedDurationMin,
+        basePrice: dto.basePrice,
+        currency: dto.currency,
+        categoryId: dto.categoryId,
+        pestCategoryId: dto.pestCategoryId,
+        isActive: dto.isActive,
         warrantyDays: dto.warrantyDays,
       },
     });
 
     // Track price changes explicitly.
-    if (dto.basePrice !== undefined && Number(current.basePrice) !== Number(dto.basePrice)) {
-      await this.auditPrice(actorId, id, Number(current.basePrice), Number(dto.basePrice));
-      this.logger.warn(`Service ${id} price ${current.basePrice} → ${dto.basePrice} by ${actorId}`);
+    if (
+      dto.basePrice !== undefined &&
+      Number(current.basePrice) !== Number(dto.basePrice)
+    ) {
+      await this.auditPrice(
+        actorId,
+        id,
+        Number(current.basePrice),
+        Number(dto.basePrice),
+      );
+      this.logger.warn(
+        `Service ${id} price ${current.basePrice} → ${dto.basePrice} by ${actorId}`,
+      );
     }
     this.logger.log(`Service updated: ${id} by ${actorId}`);
     return service;
@@ -63,14 +88,22 @@ export class ServicesService {
 
   async setActive(id: string, isActive: boolean, actorId: string) {
     await this.ensure(id);
-    const service = await this.prisma.service.update({ where: { id }, data: { isActive } });
-    this.logger.log(`Service ${id} ${isActive ? 'activated' : 'deactivated'} by ${actorId}`);
+    const service = await this.prisma.service.update({
+      where: { id },
+      data: { isActive },
+    });
+    this.logger.log(
+      `Service ${id} ${isActive ? "activated" : "deactivated"} by ${actorId}`,
+    );
     return service;
   }
 
   async remove(id: string, actorId: string) {
     await this.ensure(id);
-    await this.prisma.service.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    await this.prisma.service.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
     this.logger.warn(`Service soft-deleted: ${id} by ${actorId}`);
     return { success: true };
   }
@@ -80,7 +113,11 @@ export class ServicesService {
       where: { id, deletedAt: null },
       include: { category: true, pestCategory: true },
     });
-    if (!service) throw new NotFoundException({ code: 'SERVICE_NOT_FOUND', message: 'Service not found' });
+    if (!service)
+      throw new NotFoundException({
+        code: "SERVICE_NOT_FOUND",
+        message: "Service not found",
+      });
     return service;
   }
 
@@ -88,15 +125,22 @@ export class ServicesService {
     const where: Prisma.ServiceWhereInput = {
       deletedAt: null,
       ...(filter.categoryId ? { categoryId: filter.categoryId } : {}),
-      ...(filter.pestCategoryId ? { pestCategoryId: filter.pestCategoryId } : {}),
+      ...(filter.pestCategoryId
+        ? { pestCategoryId: filter.pestCategoryId }
+        : {}),
       ...(filter.isActive !== undefined ? { isActive: filter.isActive } : {}),
-      ...(filter.search ? { name: { contains: filter.search, mode: 'insensitive' } } : {}),
+      ...(filter.search
+        ? { name: { contains: filter.search, mode: "insensitive" } }
+        : {}),
     };
-    const sort = safeSort(filter.sort, SERVICE_SORT_FIELDS, 'createdAt');
+    const sort = safeSort(filter.sort, SERVICE_SORT_FIELDS, "createdAt");
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.service.findMany({
-        where, include: { category: true, pestCategory: true },
-        orderBy: { [sort]: filter.order }, skip: filter.skip, take: filter.limit,
+        where,
+        include: { category: true, pestCategory: true },
+        orderBy: { [sort]: filter.order },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.service.count({ where }),
     ]);
@@ -105,22 +149,52 @@ export class ServicesService {
 
   // ---- helpers ----
   private async ensure(id: string) {
-    const s = await this.prisma.service.findFirst({ where: { id, deletedAt: null } });
-    if (!s) throw new NotFoundException({ code: 'SERVICE_NOT_FOUND', message: 'Service not found' });
+    const s = await this.prisma.service.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!s)
+      throw new NotFoundException({
+        code: "SERVICE_NOT_FOUND",
+        message: "Service not found",
+      });
     return s;
   }
   private async assertCategory(id: string) {
-    const c = await this.prisma.serviceCategory.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
-    if (!c) throw new BadRequestException({ code: 'CATEGORY_NOT_FOUND', message: 'Service category not found' });
+    const c = await this.prisma.serviceCategory.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!c)
+      throw new BadRequestException({
+        code: "CATEGORY_NOT_FOUND",
+        message: "Service category not found",
+      });
   }
   private async assertPestCategory(id: string) {
-    const c = await this.prisma.pestCategory.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
-    if (!c) throw new BadRequestException({ code: 'PEST_CATEGORY_NOT_FOUND', message: 'Pest category not found' });
+    const c = await this.prisma.pestCategory.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!c)
+      throw new BadRequestException({
+        code: "PEST_CATEGORY_NOT_FOUND",
+        message: "Pest category not found",
+      });
   }
-  private async auditPrice(actorId: string, id: string, oldPrice: number, newPrice: number) {
+  private async auditPrice(
+    actorId: string,
+    id: string,
+    oldPrice: number,
+    newPrice: number,
+  ) {
     await this.prisma.auditLog.create({
-      data: { actorId, action: 'service.price_changed', entityType: 'service', entityId: id,
-        metadata: { oldPrice, newPrice } },
+      data: {
+        actorId,
+        action: "service.price_changed",
+        entityType: "service",
+        entityId: id,
+        metadata: { oldPrice, newPrice },
+      },
     });
   }
 }

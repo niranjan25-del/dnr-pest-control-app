@@ -5,11 +5,15 @@
 // toggle `deletedAt` (the schema has no separate isActive) — a deactivated/deleted area
 // provides no coverage; activate restores it. Documented limitation; see dto for the delta.
 
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { CreateServiceAreaDto, ServiceAreaFilterDto, UpdateServiceAreaDto } from './dto';
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import {
+  CreateServiceAreaDto,
+  ServiceAreaFilterDto,
+  UpdateServiceAreaDto,
+} from "./dto";
 
 export interface CoverageResult {
   postal_code: string;
@@ -24,7 +28,11 @@ export class ServiceAreasService {
 
   async create(dto: CreateServiceAreaDto) {
     const area = await this.prisma.serviceArea.create({
-      data: { name: dto.name, postalCodes: dto.postalCodes, technicianId: dto.technicianId },
+      data: {
+        name: dto.name,
+        postalCodes: dto.postalCodes,
+        technicianId: dto.technicianId,
+      },
     });
     this.logger.log(`Service area created: ${area.id}`);
     return area;
@@ -34,7 +42,11 @@ export class ServiceAreasService {
     await this.ensure(id);
     const area = await this.prisma.serviceArea.update({
       where: { id },
-      data: { name: dto.name, postalCodes: dto.postalCodes, technicianId: dto.technicianId },
+      data: {
+        name: dto.name,
+        postalCodes: dto.postalCodes,
+        technicianId: dto.technicianId,
+      },
     });
     this.logger.log(`Service area updated: ${id}`);
     return area;
@@ -42,7 +54,10 @@ export class ServiceAreasService {
 
   async remove(id: string) {
     await this.ensure(id);
-    await this.prisma.serviceArea.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.serviceArea.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     this.logger.warn(`Service area deleted: ${id}`);
     return { success: true };
   }
@@ -50,28 +65,46 @@ export class ServiceAreasService {
   // activate/deactivate share the deletedAt mechanism (no separate isActive column).
   async setActive(id: string, active: boolean) {
     const area = await this.prisma.serviceArea.findUnique({ where: { id } });
-    if (!area) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
+    if (!area)
+      throw new NotFoundException({
+        code: "SERVICE_AREA_NOT_FOUND",
+        message: "Service area not found",
+      });
     const updated = await this.prisma.serviceArea.update({
-      where: { id }, data: { deletedAt: active ? null : new Date() },
+      where: { id },
+      data: { deletedAt: active ? null : new Date() },
     });
-    this.logger.log(`Service area ${id} ${active ? 'activated' : 'deactivated'}`);
+    this.logger.log(
+      `Service area ${id} ${active ? "activated" : "deactivated"}`,
+    );
     return updated;
   }
 
   async findOne(id: string) {
-    const area = await this.prisma.serviceArea.findFirst({ where: { id, deletedAt: null } });
-    if (!area) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
+    const area = await this.prisma.serviceArea.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!area)
+      throw new NotFoundException({
+        code: "SERVICE_AREA_NOT_FOUND",
+        message: "Service area not found",
+      });
     return area;
   }
 
   async list(filter: ServiceAreaFilterDto) {
     const where: Prisma.ServiceAreaWhereInput = {
       deletedAt: null,
-      ...(filter.search ? { name: { contains: filter.search, mode: 'insensitive' } } : {}),
+      ...(filter.search
+        ? { name: { contains: filter.search, mode: "insensitive" } }
+        : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.serviceArea.findMany({
-        where, orderBy: { [filter.sort ?? 'name']: filter.order }, skip: filter.skip, take: filter.limit,
+        where,
+        orderBy: { [filter.sort ?? "name"]: filter.order },
+        skip: filter.skip,
+        take: filter.limit,
       }),
       this.prisma.serviceArea.count({ where }),
     ]);
@@ -89,7 +122,14 @@ export class ServiceAreasService {
   }
 
   private async ensure(id: string) {
-    const exists = await this.prisma.serviceArea.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
-    if (!exists) throw new NotFoundException({ code: 'SERVICE_AREA_NOT_FOUND', message: 'Service area not found' });
+    const exists = await this.prisma.serviceArea.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!exists)
+      throw new NotFoundException({
+        code: "SERVICE_AREA_NOT_FOUND",
+        message: "Service area not found",
+      });
   }
 }

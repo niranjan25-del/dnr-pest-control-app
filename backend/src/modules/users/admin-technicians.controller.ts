@@ -5,23 +5,39 @@
 // admin dashboard's TechnicianProfile / TechnicianRow types.
 
 import {
-  Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
-import { UserRole, UserStatus } from '@prisma/client';
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { UserRole, UserStatus } from "@prisma/client";
 import {
-  ArrayUnique, IsArray, IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString,
-  Matches, MaxLength, MinLength,
-} from 'class-validator';
-import { PrismaService } from 'src/database/prisma.service';
-import { paginate } from 'src/common/utils/pagination.util';
-import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles, CurrentUser } from '../auth/decorators';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { UsersService } from './users.service';
-import { AttendanceService } from '../attendance/attendance.service';
-import * as bcrypt from 'bcrypt';
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
+import { PrismaService } from "src/database/prisma.service";
+import { paginate } from "src/common/utils/pagination.util";
+import { PaginationQueryDto } from "src/common/dto/pagination-query.dto";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles, CurrentUser } from "../auth/decorators";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { UsersService } from "./users.service";
+import { AttendanceService } from "../attendance/attendance.service";
+import * as bcrypt from "bcrypt";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -41,37 +57,57 @@ class AttendanceFilterDto extends PaginationQueryDto {
 }
 
 class CreateTechnicianDto {
-  @IsEmail({}, { message: 'Enter a valid email address' })
+  @IsEmail({}, { message: "Enter a valid email address" })
   email!: string;
 
-  @IsString() @IsNotEmpty() @MaxLength(120)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
   fullName!: string;
 
-  @IsString() @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @IsString()
+  @MinLength(8, { message: "Password must be at least 8 characters" })
   password!: string;
 
-  @IsOptional() @IsString()
-  @Matches(/^\+?[1-9]\d{7,14}$/, { message: 'Phone must be a valid international number' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[1-9]\d{7,14}$/, {
+    message: "Phone must be a valid international number",
+  })
   phone?: string;
 
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   licenseNumber?: string;
 
-  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   skills?: string[];
 }
 
 class UpdateTechnicianDto {
-  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   skills?: string[];
 
-  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   service_area_ids?: string[];
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   is_available?: boolean;
 
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   license_number?: string;
 }
 
@@ -79,13 +115,21 @@ class UpdateTechnicianDto {
 
 function todayUtc(): Date {
   const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  );
 }
 
 function toRow(u: {
-  id: string; email: string; fullName: string; phone: string | null; status: string;
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  status: string;
   technicianProfile: {
-    isAvailable: boolean; ratingAverage: unknown; jobsCompleted: number;
+    isAvailable: boolean;
+    ratingAverage: unknown;
+    jobsCompleted: number;
     dutyLogs: { id: string }[];
   } | null;
 }) {
@@ -97,16 +141,17 @@ function toRow(u: {
     status: u.status,
     is_available: u.technicianProfile?.isAvailable ?? false,
     on_duty: (u.technicianProfile?.dutyLogs?.length ?? 0) > 0,
-    rating: u.technicianProfile?.ratingAverage != null
-      ? Number(u.technicianProfile.ratingAverage)
-      : undefined,
+    rating:
+      u.technicianProfile?.ratingAverage != null
+        ? Number(u.technicianProfile.ratingAverage)
+        : undefined,
     completed_jobs: u.technicianProfile?.jobsCompleted,
   };
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
-@Controller({ path: 'admin/technicians', version: '1' })
+@Controller({ path: "admin/technicians", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class AdminTechniciansController {
@@ -125,14 +170,14 @@ export class AdminTechniciansController {
       ...(filter.search
         ? {
             OR: [
-              { fullName: { contains: filter.search, mode: 'insensitive' } },
-              { email: { contains: filter.search, mode: 'insensitive' } },
+              { fullName: { contains: filter.search, mode: "insensitive" } },
+              { email: { contains: filter.search, mode: "insensitive" } },
               { phone: { contains: filter.search } },
             ],
           }
         : {}),
-      ...(filter.is_available != null && filter.is_available !== ''
-        ? { technicianProfile: { isAvailable: filter.is_available === 'true' } }
+      ...(filter.is_available != null && filter.is_available !== ""
+        ? { technicianProfile: { isAvailable: filter.is_available === "true" } }
         : {}),
     };
 
@@ -140,10 +185,16 @@ export class AdminTechniciansController {
       this.prisma.user.findMany({
         where,
         select: {
-          id: true, email: true, fullName: true, phone: true, status: true,
+          id: true,
+          email: true,
+          fullName: true,
+          phone: true,
+          status: true,
           technicianProfile: {
             select: {
-              isAvailable: true, ratingAverage: true, jobsCompleted: true,
+              isAvailable: true,
+              ratingAverage: true,
+              jobsCompleted: true,
               dutyLogs: {
                 where: { date: todayUtc(), punchedOutAt: null },
                 select: { id: true },
@@ -152,7 +203,7 @@ export class AdminTechniciansController {
             },
           },
         },
-        orderBy: { createdAt: filter.order ?? 'desc' },
+        orderBy: { createdAt: filter.order ?? "desc" },
         skip: filter.skip,
         take: filter.limit,
       }),
@@ -162,16 +213,26 @@ export class AdminTechniciansController {
     return paginate(rows.map(toRow), total, filter.page, filter.limit);
   }
 
-  @Get(':id')
-  async getOne(@Param('id', ParseUUIDPipe) id: string) {
+  @Get(":id")
+  async getOne(@Param("id", ParseUUIDPipe) id: string) {
     const u = await this.prisma.user.findFirst({
       where: { id, role: UserRole.TECHNICIAN, deletedAt: null },
       select: {
-        id: true, email: true, fullName: true, phone: true, status: true, createdAt: true,
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        status: true,
+        createdAt: true,
         technicianProfile: {
           select: {
-            id: true, licenseNumber: true, licenseExpiry: true, skills: true,
-            isAvailable: true, ratingAverage: true, jobsCompleted: true,
+            id: true,
+            licenseNumber: true,
+            licenseExpiry: true,
+            skills: true,
+            isAvailable: true,
+            ratingAverage: true,
+            jobsCompleted: true,
             serviceAreas: { select: { id: true, name: true } },
             dutyLogs: {
               where: { date: todayUtc(), punchedOutAt: null },
@@ -208,9 +269,16 @@ export class AdminTechniciansController {
     @Body() dto: CreateTechnicianDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (existing) {
-      return { error: { code: 'EMAIL_TAKEN', message: 'A user with this email already exists' } };
+      return {
+        error: {
+          code: "EMAIL_TAKEN",
+          message: "A user with this email already exists",
+        },
+      };
     }
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const user = await this.prisma.user.create({
@@ -230,40 +298,66 @@ export class AdminTechniciansController {
           },
         },
       },
-      select: { id: true, email: true, fullName: true, phone: true, status: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+      },
     });
     await this.prisma.auditLog.create({
       data: {
-        actorId: actor.id, action: 'technician.created', entityType: 'user',
-        entityId: user.id, metadata: { email: dto.email },
+        actorId: actor.id,
+        action: "technician.created",
+        entityType: "user",
+        entityId: user.id,
+        metadata: { email: dto.email },
       },
     });
-    return { id: user.id, email: user.email, full_name: user.fullName, status: user.status };
+    return {
+      id: user.id,
+      email: user.email,
+      full_name: user.fullName,
+      status: user.status,
+    };
   }
 
-  @Patch(':id')
+  @Patch(":id")
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateTechnicianDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     const profile = await this.prisma.technicianProfile.findUnique({
-      where: { userId: id }, select: { id: true },
+      where: { userId: id },
+      select: { id: true },
     });
-    if (!profile) return { error: { code: 'NOT_FOUND', message: 'Technician profile not found' } };
+    if (!profile)
+      return {
+        error: { code: "NOT_FOUND", message: "Technician profile not found" },
+      };
 
     await this.prisma.$transaction(async (tx) => {
       await tx.technicianProfile.update({
         where: { id: profile.id },
         data: {
           ...(dto.skills !== undefined ? { skills: dto.skills } : {}),
-          ...(dto.is_available !== undefined ? { isAvailable: dto.is_available } : {}),
-          ...(dto.license_number !== undefined ? { licenseNumber: dto.license_number } : {}),
+          ...(dto.is_available !== undefined
+            ? { isAvailable: dto.is_available }
+            : {}),
+          ...(dto.license_number !== undefined
+            ? { licenseNumber: dto.license_number }
+            : {}),
         },
       });
       if (dto.service_area_ids) {
         await tx.serviceArea.updateMany({
-          where: { technicianId: profile.id, id: { notIn: dto.service_area_ids } },
+          where: {
+            technicianId: profile.id,
+            id: { notIn: dto.service_area_ids },
+          },
           data: { technicianId: null },
         });
         if (dto.service_area_ids.length) {
@@ -277,26 +371,33 @@ export class AdminTechniciansController {
 
     await this.prisma.auditLog.create({
       data: {
-        actorId: actor.id, action: 'technician.profile_updated', entityType: 'user',
-        entityId: id, metadata: JSON.parse(JSON.stringify(dto)),
+        actorId: actor.id,
+        action: "technician.profile_updated",
+        entityType: "user",
+        entityId: id,
+        metadata: JSON.parse(JSON.stringify(dto)),
       },
     });
 
     return this.getOne(id);
   }
 
-  @Patch(':id/status')
+  @Patch(":id/status")
   setStatus(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: { status: string; reason?: string },
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.users.setStatus(id, dto as { status: UserStatus; reason?: string }, actor);
+    return this.users.setStatus(
+      id,
+      dto as { status: UserStatus; reason?: string },
+      actor,
+    );
   }
 
   // ── Attendance (admin view) ──────────────────────────────────────────────────
 
-  @Get('attendance')
+  @Get("attendance")
   getAttendance(@Query() filter: AttendanceFilterDto) {
     return this.attendance.adminList({
       date: filter.date,

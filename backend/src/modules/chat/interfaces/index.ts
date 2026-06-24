@@ -1,6 +1,11 @@
 // src/modules/chat/interfaces/index.ts
 
-import { AdminRole, MessageStatus, MessageType, UserRole } from '@prisma/client';
+import {
+  AdminRole,
+  MessageStatus,
+  MessageType,
+  UserRole,
+} from "@prisma/client";
 
 // Authenticated identity attached to a socket after JWT verification.
 export interface SocketUser {

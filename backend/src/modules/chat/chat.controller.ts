@@ -6,22 +6,35 @@
 // parameterized ones.
 
 import {
-  Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
-} from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { CurrentUser } from '../auth/decorators';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { ChatService } from './chat.service';
-import { AttachmentService } from './attachment.service';
-import { MessageService } from './message.service';
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { CurrentUser } from "../auth/decorators";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { ChatService } from "./chat.service";
+import { AttachmentService } from "./attachment.service";
+import { MessageService } from "./message.service";
 import {
-  ConversationFilterDto, CreateConversationDto, MarkMessageReadDto, MessageHistoryFilterDto,
-  SendMessageDto, UploadUrlDto,
-} from './dto';
+  ConversationFilterDto,
+  CreateConversationDto,
+  MarkMessageReadDto,
+  MessageHistoryFilterDto,
+  SendMessageDto,
+  UploadUrlDto,
+} from "./dto";
 
-@Controller({ path: 'chat', version: '1' })
+@Controller({ path: "chat", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ChatController {
   constructor(
@@ -31,62 +44,94 @@ export class ChatController {
   ) {}
 
   // ----- conversations -----
-  @Post('conversations')
-  createConversation(@CurrentUser() actor: AuthenticatedUser, @Body() dto: CreateConversationDto) {
+  @Post("conversations")
+  createConversation(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: CreateConversationDto,
+  ) {
     return this.chat.createConversation(actor, dto);
   }
 
-  @Get('conversations')
-  listConversations(@CurrentUser() actor: AuthenticatedUser, @Query() filter: ConversationFilterDto) {
+  @Get("conversations")
+  listConversations(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Query() filter: ConversationFilterDto,
+  ) {
     return this.chat.listConversations(actor, filter);
   }
 
-  @Get('conversations/:id')
-  getConversation(@CurrentUser() actor: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+  @Get("conversations/:id")
+  getConversation(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
     return this.chat.getConversation(actor, id);
   }
 
-  @Get('conversations/:id/messages')
-  getMessages(@CurrentUser() actor: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Query() filter: MessageHistoryFilterDto) {
+  @Get("conversations/:id/messages")
+  getMessages(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Query() filter: MessageHistoryFilterDto,
+  ) {
     return this.chat.getMessages(actor, id, filter);
   }
 
-  @Patch('conversations/:id/archive')
-  archive(@CurrentUser() actor: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+  @Patch("conversations/:id/archive")
+  archive(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
     return this.chat.archiveConversation(actor, id);
   }
 
   // ----- messages -----
-  @Post('messages')
+  @Post("messages")
   @Throttle({ default: { limit: 60, ttl: 60_000 } }) // basic anti-spam; tune per product
-  sendMessage(@CurrentUser() actor: AuthenticatedUser, @Body() dto: SendMessageDto) {
+  sendMessage(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: SendMessageDto,
+  ) {
     return this.chat.sendMessage(actor, dto).then((r) => r.message);
   }
 
-  @Patch('messages/:id/read')
-  markRead(@CurrentUser() actor: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: MarkMessageReadDto) {
+  @Patch("messages/:id/read")
+  markRead(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: MarkMessageReadDto,
+  ) {
     return this.chat.markRead(actor, dto.conversationId, id);
   }
 
-  @Delete('messages/:id')
-  deleteMessage(@CurrentUser() actor: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+  @Delete("messages/:id")
+  deleteMessage(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
     return this.chat.deleteMessage(actor, id);
   }
 
   // ----- unread -----
-  @Get('unread-count')
+  @Get("unread-count")
   unreadCount(@CurrentUser() actor: AuthenticatedUser) {
     return this.chat.globalUnread(actor.id);
   }
 
   // ----- attachments (additive: presigned upload/download) -----
-  @Post('attachments/upload-url')
-  uploadUrl(@CurrentUser() actor: AuthenticatedUser, @Body() dto: UploadUrlDto) {
+  @Post("attachments/upload-url")
+  uploadUrl(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: UploadUrlDto,
+  ) {
     return this.attachments.createUploadUrl(actor, dto);
   }
 
-  @Get('attachments/:mediaId/download')
-  downloadUrl(@CurrentUser() actor: AuthenticatedUser, @Param('mediaId', ParseUUIDPipe) mediaId: string) {
+  @Get("attachments/:mediaId/download")
+  downloadUrl(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param("mediaId", ParseUUIDPipe) mediaId: string,
+  ) {
     return this.attachments.getDownloadUrl(actor, mediaId);
   }
 }

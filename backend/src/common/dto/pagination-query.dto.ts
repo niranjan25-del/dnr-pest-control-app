@@ -4,27 +4,33 @@
 // Extend it per resource to add typed filters. Bounds prevent unbounded "limit=1000000"
 // resource-consumption abuse (OWASP API4).
 
-import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform } from "class-transformer";
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
 export class PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
-  @IsInt() @Min(1)
+  @IsInt()
+  @Min(1)
   page = 1;
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
-  @IsInt() @Min(1) @Max(100)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit = 20;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   sort?: string;
 
-  @IsOptional() @IsIn(['asc', 'desc'])
-  order: 'asc' | 'desc' = 'desc';
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  order: "asc" | "desc" = "desc";
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   search?: string;
 
   get skip(): number {

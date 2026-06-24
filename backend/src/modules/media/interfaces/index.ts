@@ -14,7 +14,7 @@ export interface UploadedMedia {
 export interface AccessUrl {
   url: string;
   expires_in: number;
-  delivery: 'cloudfront' | 's3';
+  delivery: "cloudfront" | "s3";
 }
 
 export interface PresignedUpload {

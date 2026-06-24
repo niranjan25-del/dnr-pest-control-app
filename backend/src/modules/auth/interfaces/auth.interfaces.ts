@@ -3,10 +3,10 @@
 // Shared shapes for tokens, the JWT payload, the request-bound authenticated user, and the
 // auth response returned to clients (snake_case token keys to match the API contract).
 
-import { AdminRole, UserRole } from '@prisma/client';
+import { AdminRole, UserRole } from "@prisma/client";
 
 export interface JwtPayload {
-  sub: string;        // user id
+  sub: string; // user id
   email: string;
   role: UserRole;
   adminRole?: AdminRole | null;
@@ -23,7 +23,7 @@ export interface AuthenticatedUser {
 export interface AuthTokens {
   access_token: string;
   refresh_token: string;
-  token_type: 'Bearer';
+  token_type: "Bearer";
   expires_in: number; // access token TTL in seconds
 }
 

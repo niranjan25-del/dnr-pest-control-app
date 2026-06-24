@@ -10,16 +10,22 @@
 // Returns the same UploadedMedia shape so Flutter can use the returned `id`.
 
 import {
-  BadRequestException, Controller, Post, UploadedFile, Body, UseGuards, UseInterceptors,
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { CurrentUser } from '../auth/decorators';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interfaces';
-import { MediaService } from '../media/media.service';
-import { MediaCategory } from '../media/enums';
+  BadRequestException,
+  Controller,
+  Post,
+  UploadedFile,
+  Body,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { CurrentUser } from "../auth/decorators";
+import { AuthenticatedUser } from "../auth/interfaces/auth.interfaces";
+import { MediaService } from "../media/media.service";
+import { MediaCategory } from "../media/enums";
 
 const ENTITY_TYPE_MAP: Record<string, MediaCategory> = {
   service_report_before: MediaCategory.BEFORE_SERVICE_IMAGE,
@@ -32,16 +38,16 @@ const ENTITY_TYPE_MAP: Record<string, MediaCategory> = {
 
 class MobileUploadDto {
   @IsString() @MaxLength(80) related_entity_type!: string;
-  @IsOptional() @IsUUID('4') related_entity_id?: string;
+  @IsOptional() @IsUUID("4") related_entity_id?: string;
 }
 
-@Controller({ path: 'files', version: '1' })
+@Controller({ path: "files", version: "1" })
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class FilesController {
   constructor(private readonly media: MediaService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor("file"))
   upload(
     @CurrentUser() actor: AuthenticatedUser,
     @Body() dto: MobileUploadDto,
@@ -49,8 +55,15 @@ export class FilesController {
   ) {
     const category = ENTITY_TYPE_MAP[dto.related_entity_type];
     if (!category) {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: `Unknown related_entity_type: ${dto.related_entity_type}` });
+      throw new BadRequestException({
+        code: "VALIDATION_ERROR",
+        message: `Unknown related_entity_type: ${dto.related_entity_type}`,
+      });
     }
-    return this.media.upload(actor, { category, ownerId: dto.related_entity_id }, file);
+    return this.media.upload(
+      actor,
+      { category, ownerId: dto.related_entity_id },
+      file,
+    );
   }
 }

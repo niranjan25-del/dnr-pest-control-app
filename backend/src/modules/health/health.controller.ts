@@ -4,23 +4,27 @@
 // Docker HEALTHCHECK, and the CI/CD smoke tests. `/ready` additionally pings the DB so a
 // task only receives traffic once Postgres is reachable.
 
-import { Controller, Get, Version, VERSION_NEUTRAL } from '@nestjs/common';
-import { PrismaService } from 'src/database/prisma.service';
+import { Controller, Get, Version, VERSION_NEUTRAL } from "@nestjs/common";
+import { PrismaService } from "src/database/prisma.service";
 
-@Controller('health')
+@Controller("health")
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
   @Version(VERSION_NEUTRAL)
   liveness() {
-    return { status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() };
+    return {
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
   }
 
-  @Get('ready')
+  @Get("ready")
   @Version(VERSION_NEUTRAL)
   async readiness() {
     await this.prisma.$queryRaw`SELECT 1`;
-    return { status: 'ready' };
+    return { status: "ready" };
   }
 }

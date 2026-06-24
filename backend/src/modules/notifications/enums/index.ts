@@ -7,11 +7,11 @@
 // renewal reminders map to PAYMENT; appointment/follow-up reminders map to BOOKING. We don't
 // add enum values.
 
-import { NotificationType } from '@prisma/client';
+import { NotificationType } from "@prisma/client";
 
 export enum NotificationChannel {
-  PUSH = 'PUSH',
-  IN_APP = 'IN_APP',
+  PUSH = "PUSH",
+  IN_APP = "IN_APP",
 }
 
 export interface ChannelPrefs {
@@ -23,8 +23,13 @@ export interface ChannelPrefs {
 export const DEFAULT_CHANNEL_PREFS: ChannelPrefs = { push: true, inApp: true };
 
 export const ALL_TYPES: NotificationType[] = [
-  NotificationType.BOOKING, NotificationType.PAYMENT, NotificationType.ASSIGNMENT,
-  NotificationType.CHAT, NotificationType.PROMOTION, NotificationType.REVIEW, NotificationType.SYSTEM,
+  NotificationType.BOOKING,
+  NotificationType.PAYMENT,
+  NotificationType.ASSIGNMENT,
+  NotificationType.CHAT,
+  NotificationType.PROMOTION,
+  NotificationType.REVIEW,
+  NotificationType.SYSTEM,
 ];
 
 // In-process retry for transient FCM errors (durable retry would need a queue/outbox — flagged).
@@ -34,7 +39,7 @@ export const FCM_MULTICAST_BATCH = 500; // FCM hard limit per multicast
 
 // FCM error codes that indicate a permanently invalid token (prune these).
 export const INVALID_TOKEN_ERRORS = new Set([
-  'messaging/registration-token-not-registered',
-  'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-registration-token",
+  "messaging/invalid-argument",
 ]);

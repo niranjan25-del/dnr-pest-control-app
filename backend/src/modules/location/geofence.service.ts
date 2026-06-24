@@ -5,10 +5,13 @@
 // address has no coordinates (geocoding optional, Step 8), distance checks are skipped and the
 // caller decides how to proceed (flagged).
 
-import { Injectable } from '@nestjs/common';
-import { haversineKm } from 'src/common/utils/geo.util';
+import { Injectable } from "@nestjs/common";
+import { haversineKm } from "src/common/utils/geo.util";
 
-export interface GeoPoint { latitude: number; longitude: number }
+export interface GeoPoint {
+  latitude: number;
+  longitude: number;
+}
 
 @Injectable()
 export class GeofenceService {
@@ -23,8 +26,14 @@ export class GeofenceService {
   }
 
   /** Resolve a usable center from an address; null when coordinates are missing. */
-  centerFromAddress(address: { latitude: unknown; longitude: unknown } | null): GeoPoint | null {
-    if (!address || address.latitude == null || address.longitude == null) return null;
-    return { latitude: Number(address.latitude), longitude: Number(address.longitude) };
+  centerFromAddress(
+    address: { latitude: unknown; longitude: unknown } | null,
+  ): GeoPoint | null {
+    if (!address || address.latitude == null || address.longitude == null)
+      return null;
+    return {
+      latitude: Number(address.latitude),
+      longitude: Number(address.longitude),
+    };
   }
 }
