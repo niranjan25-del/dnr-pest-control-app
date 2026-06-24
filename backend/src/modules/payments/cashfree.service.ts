@@ -5,12 +5,16 @@
 // No API-version string is passed per call — it's fixed in the SDK at the x-api-version
 // header level. No card data is ever stored locally.
 
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
-  Cashfree, CFEnvironment, PGCustomerFetchInstrumentsInstrumentTypeEnum,
-  type CreateOrderRequest, type OrderCreateRefundRequest, type InstrumentEntityForAllSavedCard,
-} from 'cashfree-pg';
+  Cashfree,
+  CFEnvironment,
+  PGCustomerFetchInstrumentsInstrumentTypeEnum,
+  type CreateOrderRequest,
+  type OrderCreateRefundRequest,
+  type InstrumentEntityForAllSavedCard,
+} from "cashfree-pg";
 
 export interface CashfreeOrder {
   orderId: string;
@@ -19,7 +23,7 @@ export interface CashfreeOrder {
 }
 
 export interface CashfreeOrderStatus {
-  orderStatus: string;   // ACTIVE | PAID | EXPIRED | CANCELLED
+  orderStatus: string; // ACTIVE | PAID | EXPIRED | CANCELLED
   orderAmount: number;
 }
 
@@ -27,7 +31,7 @@ export interface CashfreeInstrument {
   instrumentId: string;
   instrumentType: string;
   cardNetwork: string;
-  cardDisplay: string;   // last-4 display string, e.g. "XXXX XXXX XXXX 1234"
+  cardDisplay: string; // last-4 display string, e.g. "XXXX XXXX XXXX 1234"
 }
 
 @Injectable()
@@ -36,19 +40,20 @@ export class CashfreeService {
   private readonly cf: Cashfree;
 
   constructor(private readonly config: ConfigService) {
-    const clientId = config.get<string>('cashfree.clientId')!;
-    const clientSecret = config.get<string>('cashfree.clientSecret')!;
-    const env = config.get<string>('cashfree.environment') === 'production'
-      ? CFEnvironment.PRODUCTION
-      : CFEnvironment.SANDBOX;
+    const clientId = config.get<string>("cashfree.clientId")!;
+    const clientSecret = config.get<string>("cashfree.clientSecret")!;
+    const env =
+      config.get<string>("cashfree.environment") === "production"
+        ? CFEnvironment.PRODUCTION
+        : CFEnvironment.SANDBOX;
     this.cf = new Cashfree(env, clientId, clientSecret);
   }
 
   async createOrder(params: {
     orderId: string;
-    amount: number;       // major units (INR)
+    amount: number; // major units (INR)
     currency: string;
-    customerId: string;   // our CustomerProfile.id — Cashfree uses it as customer identifier
+    customerId: string; // our CustomerProfile.id — Cashfree uses it as customer identifier
     customerEmail: string;
     customerPhone: string;
     notifyUrl?: string;
@@ -63,7 +68,9 @@ export class CashfreeService {
         customer_email: params.customerEmail,
         customer_phone: params.customerPhone,
       },
-      order_meta: params.notifyUrl ? { notify_url: params.notifyUrl } : undefined,
+      order_meta: params.notifyUrl
+        ? { notify_url: params.notifyUrl }
+        : undefined,
       order_tags: params.tags,
     };
     const { data } = await this.cf.PGCreateOrder(req);
@@ -84,8 +91,8 @@ export class CashfreeService {
 
   async createRefund(params: {
     orderId: string;
-    refundId: string;   // idempotency key
-    amount: number;     // major units
+    refundId: string; // idempotency key
+    amount: number; // major units
     note?: string;
   }): Promise<void> {
     const req: OrderCreateRefundRequest = {
@@ -102,29 +109,36 @@ export class CashfreeService {
         customerId,
         PGCustomerFetchInstrumentsInstrumentTypeEnum.CARD,
       );
-      const rows = (Array.isArray(data) ? data : []) as InstrumentEntityForAllSavedCard[];
+      const rows = (
+        Array.isArray(data) ? data : []
+      ) as InstrumentEntityForAllSavedCard[];
       return rows.map((i) => ({
-        instrumentId: i.instrument_id ?? '',
-        instrumentType: i.instrument_type ?? 'card',
-        cardNetwork: i.instrument_meta?.card_network ?? 'unknown',
-        cardDisplay: i.instrument_display ?? '****',
+        instrumentId: i.instrument_id ?? "",
+        instrumentType: i.instrument_type ?? "card",
+        cardNetwork: i.instrument_meta?.card_network ?? "unknown",
+        cardDisplay: i.instrument_display ?? "****",
       }));
     } catch {
       return [];
     }
   }
 
-  async deleteInstrument(customerId: string, instrumentId: string): Promise<void> {
+  async deleteInstrument(
+    customerId: string,
+    instrumentId: string,
+  ): Promise<void> {
     await this.cf.PGCustomerDeleteInstrument(customerId, instrumentId);
   }
 
   /** Fetch all payments attempted on an order. Used to detect SUCCESS when order is still ACTIVE. */
-  async getOrderPayments(orderId: string): Promise<{ paymentStatus: string }[]> {
+  async getOrderPayments(
+    orderId: string,
+  ): Promise<{ paymentStatus: string }[]> {
     try {
       const { data } = await this.cf.PGOrderFetchPayments(orderId);
       const rows = Array.isArray(data) ? data : [];
-      return rows.map((p: Record<string, unknown>) => ({
-        paymentStatus: String(p.payment_status ?? ''),
+      return rows.map((p) => ({
+        paymentStatus: String((p as { payment_status?: unknown }).payment_status ?? ""),
       }));
     } catch {
       return [];
@@ -132,7 +146,11 @@ export class CashfreeService {
   }
 
   /** Verify Cashfree webhook signature. Throws if the signature is invalid. */
-  verifyWebhookSignature(signature: string, rawBody: string, timestamp: string): void {
+  verifyWebhookSignature(
+    signature: string,
+    rawBody: string,
+    timestamp: string,
+  ): void {
     this.cf.PGVerifyWebhookSignature(signature, rawBody, timestamp);
   }
 }
